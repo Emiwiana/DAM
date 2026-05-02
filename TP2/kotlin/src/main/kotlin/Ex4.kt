@@ -2,8 +2,6 @@ import kotlin.math.sqrt
 
 data class Vec2(val x: Double, val y: Double) : Comparable<Vec2> {
 
-    // --- Arithmetic Operators ---
-
     operator fun plus(other: Vec2): Vec2 = Vec2(x + other.x, y + other.y)
     operator fun minus(other: Vec2): Vec2 = Vec2(x - other.x, y - other.y)
     operator fun times(scalar: Double): Vec2 = Vec2(x * scalar, y * scalar)
@@ -21,21 +19,10 @@ data class Vec2(val x: Double, val y: Double) : Comparable<Vec2> {
         }
     }
 
-    // --- Mathematical Functions ---
-
-    /**
-     * Returns the Euclidean length: $\sqrt{x^2 + y^2}$
-     */
     fun magnitude(): Double = sqrt(x * x + y * y)
 
-    /**
-     * Returns the dot product: $x_1x_2 + y_1y_2$
-     */
     fun dot(other: Vec2): Double = (x * other.x) + (y * other.y)
 
-    /**
-     * Returns a unit vector (magnitude of 1.0).
-     */
     fun normalized(): Vec2 {
         val mag = magnitude()
         if (mag == 0.0) throw IllegalStateException("Cannot normalize a zero vector")
@@ -44,8 +31,6 @@ data class Vec2(val x: Double, val y: Double) : Comparable<Vec2> {
 }
 
 operator fun Double.times(vec: Vec2): Vec2 = vec * this
-
-// --- Main Testing Function ---
 
 fun main() {
     val a = Vec2(3.0, 4.0)

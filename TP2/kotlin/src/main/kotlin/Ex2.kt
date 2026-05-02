@@ -63,7 +63,6 @@ fun main() {
     val activeWords = wordCache.filterValues { it > 0 }
     println("Active Words : $activeWords")
 
-    // --- Id registry cache ---
     println("\n--- Id registry cache ---")
     val idRegistry = Cache<Int, String>()
     idRegistry.put(1, "Alice")

@@ -44,11 +44,9 @@ fun main() {
         }
     }
 
-    // Print calculated totals
     println("Total spent by alice : $${events.totalSpent("alice")}")
     println("Total spent by bob : $${events.totalSpent("bob")}")
 
-    // Print filtered events
     println("Events for alice :")
     events.filterByUser("alice").forEach { event ->
         println(event)

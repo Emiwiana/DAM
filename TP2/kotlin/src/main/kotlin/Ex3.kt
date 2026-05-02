@@ -26,7 +26,6 @@ class Pipeline {
         val stage2 = stages.find { it.first == name2 }?.second
 
         if (stage1 != null && stage2 != null) {
-            // Function composition: f(g(x))
             val combined: (List<String>) -> List<String> = { input ->
                 stage2(stage1(input))
             }
