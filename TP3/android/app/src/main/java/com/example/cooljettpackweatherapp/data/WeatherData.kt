@@ -24,8 +24,8 @@ data class CurrentWeather (
 data class Hourly (
     var time : ArrayList < String >,
     var temperature_2m : ArrayList <Float >,
-    var weathercode : ArrayList <Int >,
-    var pressure_msl : ArrayList < Double >
+    var weathercode : ArrayList <Int>,
+    var pressure_msl : ArrayList <Double>
 )
 
 enum class WMO_WeatherCode ( var code : Int , var image : String ) {

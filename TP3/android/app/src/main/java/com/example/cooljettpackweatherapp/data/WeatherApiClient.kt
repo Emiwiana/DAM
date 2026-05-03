@@ -8,6 +8,7 @@ import io.ktor.client.request.get
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
+
 object WeatherApiClient {
     private val client = HttpClient(Android) {
         install(ContentNegotiation) {
