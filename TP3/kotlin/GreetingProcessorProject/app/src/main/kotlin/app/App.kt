@@ -1,14 +1,14 @@
-package com.example.app
-import annotations.Greeting
-import java.sql.DriverManager.println
+package app
 
-open class MyClass {
+import annotations.Greeting
+
+open class MyClass{
     @Greeting("Hello from MyClass!")
-    open fun sayHello() {
-        println("Executing sayHello method")
+    open fun sayHello () {
+        println ("Executing sayHello method")
     }
     @Greeting ("Welcome to the compute function!")
-    open fun compute() {
+    open fun compute () {
         println ("Computing something important...")
     }
 }

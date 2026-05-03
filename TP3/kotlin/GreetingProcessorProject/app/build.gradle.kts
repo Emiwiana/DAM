@@ -1,6 +1,6 @@
 plugins {
-    kotlin("jvm") version "2.3.20"
-    kotlin("kapt") // Needed for annotation processing
+    kotlin("jvm")
+    kotlin("kapt")
 }
 
 group = "org.example"
@@ -12,18 +12,18 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation(kotlin ("stdlib"))
+    implementation(kotlin("stdlib"))
 
     // Include the annotations module
     implementation(project(":annotations"))
     // Use the annotation processor
-    kapt (project(":processor"))
+    kapt(project(":processor"))
+}
+
+kotlin {
+    jvmToolchain(25)
 }
 
 tasks.test {
     useJUnitPlatform()
-}
-
-kotlin {
-    jvmToolchain(17)
 }
