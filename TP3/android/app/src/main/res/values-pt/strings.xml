@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Aplicação Jettpack de Tempo Fixe</string>
+    <string name="update_weather_string">Atualizar Tempo</string>
+    <string name="pressure_text">Pressão ao Nível do Mar</string>
+    <string name="wind_text">Direção do Vento</string>
+    <string name="wind_speed_text">Velocidade do Vento</string>
+    <string name="temperature_text">Temperatura</string>
+    <string name="time_text">Tempo</string>
+    <string name="coordinates_text">Coordenadas</string>
+    <string name="latitude_text">Latitude</string>
+    <string name="longitude_text">Longitude</string>
+</resources>
