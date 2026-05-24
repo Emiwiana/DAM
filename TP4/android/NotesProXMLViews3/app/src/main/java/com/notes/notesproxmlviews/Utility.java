@@ -1,5 +1,6 @@
 package com.notes.notesproxmlviews;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.widget.Toast;
 import com.google.firebase.Timestamp;
@@ -24,6 +25,7 @@ public class Utility {
                 .document(currentUser.getUid()).collection("my_notes");
     }
 
+    @SuppressLint("SimpleDateFormat")
     static String timestampToString(Timestamp timestamp){
         return new SimpleDateFormat("MM/dd/yyyy").format(timestamp.toDate());
     }

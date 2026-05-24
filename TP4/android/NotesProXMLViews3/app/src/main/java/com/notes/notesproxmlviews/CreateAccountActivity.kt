@@ -33,14 +33,14 @@ class CreateAccountActivity : AppCompatActivity() {
         progressBar = findViewById<ProgressBar?>(R.id.progress_bar)
         loginBtnTextView = findViewById<TextView?>(R.id.login_text_view_btn)
 
-        createAccountBtn!!.setOnClickListener(View.OnClickListener { v: View? -> createAccount() })
-        loginBtnTextView!!.setOnClickListener(View.OnClickListener { v: View? -> finish() })
+        createAccountBtn!!.setOnClickListener { _: View? -> createAccount() }
+        loginBtnTextView!!.setOnClickListener { _: View? -> finish() }
     }
 
     fun createAccount() {
-        val email = emailEditText!!.getText().toString()
-        val password = passwordEditText!!.getText().toString()
-        val confirmPassword = confirmPasswordEditText!!.getText().toString()
+        val email = emailEditText!!.text.toString()
+        val password = passwordEditText!!.text.toString()
+        val confirmPassword = confirmPasswordEditText!!.text.toString()
 
         val isValidated = validateData(email, password, confirmPassword)
         if (!isValidated) {
@@ -55,30 +55,26 @@ class CreateAccountActivity : AppCompatActivity() {
 
         val firebaseAuth = FirebaseAuth.getInstance()
         firebaseAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(
-            this@CreateAccountActivity,
-            object : OnCompleteListener<AuthResult?> {
-
-                override fun onComplete(task: Task<AuthResult?>) {
-                    changeInProgress(false)
-                    if (task.isSuccessful) {
-                        // creating acc is done
-                        Utility.showToast(
-                            this@CreateAccountActivity,
-                            "Successfully create account,Check email to verify"
-                        )
-                        firebaseAuth.currentUser!!.sendEmailVerification()
-                        firebaseAuth.signOut()
-                        finish()
-                    } else {
-                        // failure
-                        Utility.showToast(
-                            this@CreateAccountActivity,
-                            task.exception!!.localizedMessage
-                        )
-                    }
-                }
+            this@CreateAccountActivity
+        ) { task ->
+            changeInProgress(false)
+            if (task.isSuccessful) {
+                // creating acc is done
+                Utility.showToast(
+                    this@CreateAccountActivity,
+                    "Successfully create account,Check email to verify"
+                )
+                firebaseAuth.currentUser!!.sendEmailVerification()
+                firebaseAuth.signOut()
+                finish()
+            } else {
+                // failure
+                Utility.showToast(
+                    this@CreateAccountActivity,
+                    task.exception!!.localizedMessage
+                )
             }
-        )
+        }
     }
 
     /**

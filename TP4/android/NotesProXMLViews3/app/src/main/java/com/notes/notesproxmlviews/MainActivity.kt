@@ -24,14 +24,14 @@ class MainActivity : AppCompatActivity() {
         recyclerView = findViewById<RecyclerView?>(R.id.recyler_view)
         menuBtn = findViewById<ImageButton?>(R.id.menu_btn)
 
-        addNoteBtn!!.setOnClickListener(View.OnClickListener { v: View? ->
+        addNoteBtn!!.setOnClickListener { _: View? ->
             startActivity(
                 Intent(
                     this@MainActivity, NoteDetailsActivity::class.java
                 )
             )
-        })
-        menuBtn!!.setOnClickListener(View.OnClickListener { v: View? -> showMenu() })
+        }
+        menuBtn!!.setOnClickListener { _: View? -> showMenu() }
     }
 
 

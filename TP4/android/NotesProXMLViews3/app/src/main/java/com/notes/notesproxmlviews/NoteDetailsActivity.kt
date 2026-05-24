@@ -48,14 +48,14 @@ class NoteDetailsActivity : AppCompatActivity() {
             deleteNoteTextViewBtn!!.visibility = View.VISIBLE
         }
 
-        saveNoteBtn!!.setOnClickListener(View.OnClickListener { v: View? -> saveNote() })
+        saveNoteBtn!!.setOnClickListener { _: View? -> saveNote() }
 
-        deleteNoteTextViewBtn!!.setOnClickListener(View.OnClickListener { v: View? -> deleteNoteFromFirebase() })
+        deleteNoteTextViewBtn!!.setOnClickListener { _: View? -> deleteNoteFromFirebase() }
     }
 
     fun saveNote() {
-        val noteTitle = titleEditText!!.getText().toString()
-        val noteContent = contentEditText!!.getText().toString()
+        val noteTitle = titleEditText!!.text.toString()
+        val noteContent = contentEditText!!.text.toString()
         if (noteTitle.isEmpty()) {
             titleEditText!!.error = "Title is required"
             return
@@ -98,16 +98,14 @@ class NoteDetailsActivity : AppCompatActivity() {
         val documentReference: DocumentReference = Utility.getCollectionReferenceForNotes().document(
             docId.toString()
         )
-        documentReference.delete().addOnCompleteListener(object : OnCompleteListener<Void?> {
-            override fun onComplete(task: Task<Void?>) {
-                if (task.isSuccessful) {
-                    //note is deleted
-                    Utility.showToast(this@NoteDetailsActivity, "Note deleted successfully")
-                    finish()
-                } else {
-                    Utility.showToast(this@NoteDetailsActivity, "Failed while deleting note")
-                }
+        documentReference.delete().addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                //note is deleted
+                Utility.showToast(this@NoteDetailsActivity, "Note deleted successfully")
+                finish()
+            } else {
+                Utility.showToast(this@NoteDetailsActivity, "Failed while deleting note")
             }
-        })
+        }
     }
 }
