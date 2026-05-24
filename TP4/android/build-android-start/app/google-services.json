@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "742705313272",
+    "project_id": "dam-51635",
+    "storage_bucket": "dam-51635.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:742705313272:android:977204c726c2636280520d",
+        "android_client_info": {
+          "package_name": "com.google.firebase.codelab.friendlychat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZ7ethEQw33GhAmsYBcjSPeUa-2jkMPXo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
