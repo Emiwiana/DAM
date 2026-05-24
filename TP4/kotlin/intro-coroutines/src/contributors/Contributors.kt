@@ -3,6 +3,8 @@ package contributors
 import contributors.Contributors.LoadingStatus.*
 import contributors.Variant.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.StateFlow
 import tasks.*
 import java.awt.event.ActionListener
 import javax.swing.SwingUtilities
@@ -20,9 +22,31 @@ enum class Variant {
     CHANNELS          // Request7Channels
 }
 
+
+
 interface Contributors: CoroutineScope {
 
+    enum class LoadingStatus { INIT, COMPLETED, CANCELED, IN_PROGRESS}
+
+    data class LoadingStateData (
+        val status: Contributors.LoadingStatus = LoadingStatus.INIT,
+        val startTime: Long? = null,
+        val elapsedTime: String = ""
+    )
+
+    val loadingState : StateFlow<LoadingStateData>
+
     val job: Job
+
+    private fun calculateElapsedTime ( startTime : Long ): String {
+        val time = System . currentTimeMillis () - startTime
+        return "${( time / 1000) }.${ time % 1000 / 100} sec "
+    }
+
+    fun updateLoadingStatus ( newStatus : LoadingStateData )
+    fun observeLoadingStatus()
+
+
 
     override val coroutineContext: CoroutineContext
         get() = job + Dispatchers.Main
@@ -100,18 +124,23 @@ interface Contributors: CoroutineScope {
                 }.setUpCancellation()
             }
             CHANNELS -> {  // Performing requests concurrently and showing progress
-                launch(Dispatchers.Default) {
-                    loadContributorsChannels(service, req) { users, completed ->
-                        withContext(Dispatchers.Main) {
-                            updateResults(users, startTime, completed)
+                launch ( Dispatchers . Default ) {
+                    val progressChannel = Channel <Pair <List <User >, Boolean >>()
+                    launch ( Dispatchers . Default ) {
+                        loadContributorsChannels ( service , req ) { users , completed ->
+                            progressChannel . send (Pair(users, completed))
                         }
                     }
-                }.setUpCancellation()
+                    for ((users, completed) in progressChannel ) {
+                        withContext ( Dispatchers . Main ) {
+                            updateResults (users , startTime , completed )
+                        }
+                    }
+                }. setUpCancellation ()
             }
         }
     }
 
-    private enum class LoadingStatus { COMPLETED, CANCELED, IN_PROGRESS }
 
     private fun clearResults() {
         updateContributors(listOf())
@@ -124,10 +153,13 @@ interface Contributors: CoroutineScope {
         startTime: Long,
         completed: Boolean = true
     ) {
-        updateContributors(users)
-        updateLoadingStatus(if (completed) COMPLETED else IN_PROGRESS, startTime)
-        if (completed) {
-            setActionsStatus(newLoadingEnabled = true)
+        updateContributors ( users )
+        val status = if ( completed ) COMPLETED else IN_PROGRESS
+        val elapsedTime = calculateElapsedTime ( startTime )
+        updateLoadingStatus ( LoadingStateData ( status = status , startTime =
+            startTime , elapsedTime = elapsedTime ))
+        if ( completed ) {
+            setActionsStatus ( newLoadingEnabled = true )
         }
     }
 
@@ -145,6 +177,7 @@ interface Contributors: CoroutineScope {
                     COMPLETED -> "completed in $time"
                     IN_PROGRESS -> "in progress $time"
                     CANCELED -> "canceled"
+                    INIT -> "init"
                 }
         setLoadingStatus(text, status == IN_PROGRESS)
     }

@@ -1,6 +1,10 @@
 package contributors
 
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -32,6 +36,9 @@ class ContributorsUI : JFrame("GitHub Contributors"), Contributors {
     private val loadingIcon = ImageIcon(javaClass.classLoader.getResource("ajax-loader.gif"))
     private val loadingStatus = JLabel("Start new loading", loadingIcon, SwingConstants.CENTER)
 
+    private val _loadingState = MutableStateFlow (Contributors.LoadingStateData())
+    override val loadingState : StateFlow<Contributors.LoadingStateData> = _loadingState.asStateFlow ()
+
     override val job = Job()
 
     init {
@@ -56,6 +63,29 @@ class ContributorsUI : JFrame("GitHub Contributors"), Contributors {
         }
         // Initialize actions
         init()
+    }
+
+    override fun updateLoadingStatus ( newStatus : Contributors.LoadingStateData)
+    {
+        _loadingState . value = newStatus
+    }
+
+    override fun observeLoadingStatus () {
+        launch {
+            loadingState . collect { status ->
+                // Format the status text based on the current state
+                val text = " Loading status : " + when ( status . status ) {
+                    Contributors.LoadingStatus . COMPLETED -> " completed in ${ status.elapsedTime }"
+                    Contributors.LoadingStatus.IN_PROGRESS -> "in progress ${ status . elapsedTime }"
+                    Contributors.LoadingStatus.CANCELED -> " canceled "
+                    Contributors.LoadingStatus . INIT -> " init "
+                }
+                // Update the UI components
+                loadingStatus.text = text
+                loadingStatus.icon = if ( status . status == Contributors.LoadingStatus . IN_PROGRESS ) loadingIcon else
+                    null
+            }
+        }
     }
 
     override fun getSelectedVariant(): Variant = variant.getItemAt(variant.selectedIndex)

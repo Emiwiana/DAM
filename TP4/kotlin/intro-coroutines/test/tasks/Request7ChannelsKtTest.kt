@@ -16,11 +16,10 @@ class Request7ChannelsKtTest {
                 users, _ ->
             val expected = concurrentProgressResults[index++]
             val time = System.currentTimeMillis() - startTime
-            /*
-            // TODO: uncomment this assertion
+
             Assert.assertEquals("Expected intermediate result after virtual ${expected.timeFromStart} ms:",
                 expected.timeFromStart, time)
-            */
+
             Assert.assertEquals("Wrong intermediate result after $time:", expected.users, users)
         }
     }
