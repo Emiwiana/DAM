@@ -74,6 +74,13 @@ interface AIAssistant {
         get() = properties.getProperty(apiKeyName)
             ?: throw IllegalStateException("API key $apiKeyName not found in configuration file.")
 
+    val temperature: String
+        get() = (properties.getProperty("TEMPERATURE")) ?: throw IllegalStateException("temperature not found in configuration file.")
+
+    val maxTokens: String
+        get() = (properties.getProperty("MAX_TOKENS")) ?: throw IllegalStateException("temperature not found in configuration file.")
+
+
 
     /**
      * Returns the name/identifier of the system being used
@@ -81,6 +88,8 @@ interface AIAssistant {
      * @return String representing the system name
      */
     fun getSystem(): String
+
+
 
     /**
      * Processes user input by building a formatted prompt and making an API call.
@@ -93,7 +102,8 @@ interface AIAssistant {
      */
     suspend fun processInput(input: String): String {
         // Format the raw input using the buildPrompt method
-        val formattedPrompt = buildPrompt(input)
+        //val formattedPrompt = buildPrompt(input)
+        val formattedPrompt = buildSentimentPrompt(input)
 
         // Make the API call with the formatted prompt
         return apiCallWithBackoff(formattedPrompt)
@@ -112,6 +122,27 @@ interface AIAssistant {
             The preferred language is English.
             Respond in a friendly and helpful manner.
             The user's request is: "$input"
+            """.trimIndent()
+    }
+
+    fun buildSentimentPrompt(input: String): String {
+        return """
+            Evaluate the sentiment of the following text on a 7-point scale:
+            1. Very Negative
+            2. Negative
+            3. Slightly Negative
+            4. Neutral
+            5. Slightly Positive
+            6. Positive
+            7. Very Positive
+
+            You must respond strictly in the following JSON format without any markdown blocks or extra text:
+            {
+              "rating": <integer from 1 to 7>,
+              "justification": "<your brief explanation here>"
+            }
+
+            Text to evaluate: "$input"
             """.trimIndent()
     }
 
@@ -156,6 +187,8 @@ interface AIAssistant {
         // If we've exhausted all retry attempts, throw an exception
         throw Exception("Exceeded maximum retry attempts")
     }
+
+
 
     /**
      * Makes an API call with the provided prompt and processes the response.
@@ -249,6 +282,8 @@ interface AIAssistant {
      * @param prompt The user's input query or prompt that needs to be formatted into a request
      */
     fun buildRequest(prompt: String): Request
+
+
 
 }
 
