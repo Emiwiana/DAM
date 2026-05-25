@@ -22,6 +22,7 @@
     <string name="menu_button">Menu button</string>
     <string name="title">Title</string>
     <string name="content">Content</string>
+    <string name="timestamp">Timestamp</string>
     <string name="delete_note">Delete note</string>
     <string name="save_note">Save Note</string>
     <string name="add_new_note">Add New Note</string>
