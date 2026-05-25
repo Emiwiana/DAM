@@ -36,44 +36,65 @@
 
     </RelativeLayout>
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/title_bar_layout"
-        android:layout_marginVertical="26dp"
-        android:background="@drawable/rounded_corner"
-        android:backgroundTint="@color/white"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent"
+        android:layout_above="@id/delete_note_text_view_btn"
+        android:layout_below="@id/title_bar_layout">
 
-        <EditText
-            android:id="@+id/notes_title_text"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginVertical="8dp"
-            android:autofillHints="Notes Title"
-            android:hint="@string/title"
-            android:inputType="text"
-            android:padding="12dp"
-            android:textColor="@color/black"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:layout_marginVertical="26dp"
+            android:background="@drawable/rounded_corner"
+            android:backgroundTint="@color/white"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-        <EditText
-            android:id="@+id/notes_content_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginVertical="8dp"
-            android:autofillHints="Notes Content"
-            android:gravity="top"
-            android:hint="@string/content"
-            android:inputType="textMultiLine"
-            android:minLines="15"
-            android:padding="12dp"
-            android:textColor="@color/black"
-            android:textSize="20sp" />
+            <EditText
+                android:id="@+id/notes_title_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="8dp"
+                android:autofillHints="Notes Title"
+                android:hint="@string/title"
+                android:inputType="text"
+                android:padding="12dp"
+                android:textColor="@color/black"
+                android:textSize="20sp"
+                android:textStyle="bold" />
 
-    </LinearLayout>
+            <ImageView
+                android:id="@+id/note_image_view"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginVertical="8dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/pick_image_btn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="8dp"
+                android:text="Select Image" />
+
+            <EditText
+                android:id="@+id/notes_content_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="8dp"
+                android:autofillHints="Notes Content"
+                android:gravity="top"
+                android:hint="@string/content"
+                android:inputType="textMultiLine"
+                android:minLines="10"
+                android:padding="12dp"
+                android:textColor="@color/black"
+                android:textSize="20sp" />
+
+        </LinearLayout>
+    </ScrollView>
 
     <TextView
         android:id="@+id/delete_note_text_view_btn"
@@ -81,6 +102,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:gravity="center"
+        android:padding="8dp"
         android:text="@string/delete_note"
         android:textColor="#FF0000"
         android:textSize="18sp"

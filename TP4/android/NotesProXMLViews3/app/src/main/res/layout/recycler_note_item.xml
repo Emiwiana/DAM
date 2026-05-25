@@ -8,6 +8,14 @@
     android:orientation="vertical"
     android:padding="12dp">
 
+    <ImageView
+        android:id="@+id/note_image_view"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginBottom="8dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/note_title_text_view"
         android:layout_width="match_parent"
@@ -31,7 +39,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:ellipsize="end"
-        android:maxLines="5"
+        android:maxLines="3"
         android:text="@string/content"
         android:textColor="@color/black"
         android:textSize="16sp" />
