@@ -3,14 +3,11 @@ package com.emiwiana.forge5e.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.emiwiana.forge5e.model.api.dto.APIReference
-import com.emiwiana.forge5e.model.db.CharacterEntity
-import com.emiwiana.forge5e.model.db.CharacterEquipmentEntity
-import com.emiwiana.forge5e.model.db.CharacterSpellEntity
-import com.emiwiana.forge5e.model.db.CharacterTrackerEntity
+import com.emiwiana.forge5e.model.db.*
 import com.emiwiana.forge5e.model.repository.CharacterRepository
 import com.emiwiana.forge5e.model.repository.SrdRepository
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 data class AttackInfo(
@@ -52,11 +49,11 @@ class CharacterDetailViewModel(
     val trackers: StateFlow<List<CharacterTrackerEntity>> = characterRepository.getCharacterTrackers(characterId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val features: StateFlow<List<CharacterFeatureEntity>> = characterRepository.getCharacterFeatures(characterId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _attacks = MutableStateFlow<List<AttackInfo>>(emptyList())
     val attacks: StateFlow<List<AttackInfo>> = _attacks.asStateFlow()
-
-    private val _features = MutableStateFlow<List<FeatureInfo>>(emptyList())
-    val features: StateFlow<List<FeatureInfo>> = _features.asStateFlow()
 
     private val _availableEquipment = MutableStateFlow<List<APIReference>>(emptyList())
     val availableEquipment: StateFlow<List<APIReference>> = _availableEquipment.asStateFlow()
@@ -78,17 +75,30 @@ class CharacterDetailViewModel(
         char?.let {
             val profBonus = getProficiencyBonus(it.level)
             val isProficient = it.skillProficiencies.split(",").contains("Perception")
-            val perceptionMod = getModifier(it.wisdom) + (if (isProficient) profBonus else 0)
+            val isExpert = it.expertiseSkills.split(",").contains("Perception")
+            val bonus = if (isExpert) profBonus * 2 else if (isProficient) profBonus else 0
+            val perceptionMod = getModifier(it.wisdom) + bonus
             10 + perceptionMod
         } ?: 10
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10)
 
     init {
-        character.filterNotNull().onEach { char ->
-            updateFeatures(char)
-        }.launchIn(viewModelScope)
+        character.filterNotNull()
+            .distinctUntilChanged { old, new ->
+                old.level == new.level &&
+                old.classIndex == new.classIndex &&
+                old.subclassIndex == new.subclassIndex &&
+                old.raceIndex == new.raceIndex &&
+                old.subraceIndex == new.subraceIndex &&
+                old.backgroundIndex == new.backgroundIndex
+            }
+            .onEach { char ->
+                updateFeatures(char)
+            }.launchIn(viewModelScope)
 
         combine(character, inventory, spells) { char, inv, spl ->
+            Triple(char, inv, spl)
+        }.onEach { (char, inv, spl) ->
             if (char != null) {
                 updateAttacks(char, inv, spl)
                 calculateAC(char, inv)
@@ -128,65 +138,62 @@ class CharacterDetailViewModel(
         _armorClass.value = baseAC
     }
 
-    private suspend fun updateFeatures(char: CharacterEntity) {
-        val newFeatures = mutableListOf<FeatureInfo>()
+    private suspend fun updateFeatures(char: CharacterEntity) = coroutineScope {
+        val newFeatures = mutableListOf<CharacterFeatureEntity>()
 
-        // Fetch Race Traits
+        // 1. Race Traits (Assuming all gained at Level 1 in SRD)
         if (char.raceIndex.isNotBlank()) {
             srdRepository.fetchRaceTraits(char.raceIndex).onSuccess { traits ->
                 traits.results.forEach { traitRef ->
-                    srdRepository.fetchRacialFeature(traitRef.index).onSuccess { detail ->
-                        newFeatures.add(FeatureInfo(detail.name, detail.desc.joinToString("\n"), "Race"))
-                    }
+                    newFeatures.add(CharacterFeatureEntity(characterId, traitRef.index, traitRef.name, "Race", "Trait"))
                 }
             }
         }
 
-        // Fetch Subrace Traits
         if (char.subraceIndex.isNotBlank()) {
             srdRepository.fetchSubraceTraits(char.subraceIndex).onSuccess { traits ->
                 traits.results.forEach { traitRef ->
-                    srdRepository.fetchRacialFeature(traitRef.index).onSuccess { detail ->
-                        newFeatures.add(FeatureInfo(detail.name, detail.desc.joinToString("\n"), "Race"))
-                    }
+                    newFeatures.add(CharacterFeatureEntity(characterId, traitRef.index, traitRef.name, "Race", "Trait"))
                 }
             }
         }
 
-        // Fetch Class Features
+        // 2. Class Features (Filtered by current level)
         if (char.classIndex.isNotBlank()) {
-            srdRepository.fetchClassFeatures(char.classIndex).onSuccess { features ->
-                features.results.forEach { featureRef ->
-                    srdRepository.fetchClassFeature(featureRef.index).onSuccess { detail ->
-                        newFeatures.add(FeatureInfo(detail.name, detail.desc.joinToString("\n"), "Class"))
+            srdRepository.fetchClassLevels(char.classIndex).onSuccess { levels ->
+                levels.filter { it.level <= char.level }.forEach { level ->
+                    level.features.forEach { featureRef ->
+                        newFeatures.add(CharacterFeatureEntity(characterId, featureRef.index, featureRef.name, "Class", "Feature"))
                     }
                 }
             }
         }
 
-        // Fetch Subclass Features
+        // 3. Subclass Features (Filtered by current level)
         if (char.subclassIndex.isNotBlank()) {
-            srdRepository.fetchSubclassFeatures(char.subclassIndex).onSuccess { features ->
-                features.results.forEach { featureRef ->
-                    srdRepository.fetchClassFeature(featureRef.index).onSuccess { detail ->
-                        newFeatures.add(FeatureInfo(detail.name, detail.desc.joinToString("\n"), "Class"))
+            srdRepository.fetchSubclassLevels(char.subclassIndex).onSuccess { levels ->
+                levels.filter { it.level <= char.level }.forEach { level ->
+                    level.features.forEach { featureRef ->
+                        newFeatures.add(CharacterFeatureEntity(characterId, featureRef.index, featureRef.name, "Class", "Feature"))
                     }
                 }
             }
         }
 
-        // Fetch Background Feature
+        // 4. Background Feature
         if (char.backgroundIndex.isNotBlank()) {
             srdRepository.fetchBackground(char.backgroundIndex).onSuccess { background ->
-                newFeatures.add(FeatureInfo(
+                newFeatures.add(CharacterFeatureEntity(
+                    characterId,
+                    "bg-feature-${char.backgroundIndex}",
                     background.backgroundFeature.name,
-                    background.backgroundFeature.desc.joinToString("\n"),
+                    "Background",
                     "Background"
                 ))
             }
         }
 
-        _features.value = newFeatures
+        characterRepository.syncFeatures(characterId, newFeatures)
     }
 
     private suspend fun updateAttacks(char: CharacterEntity, inv: List<CharacterEquipmentEntity>, spl: List<CharacterSpellEntity>) {
@@ -300,6 +307,10 @@ class CharacterDetailViewModel(
         return character.value?.skillProficiencies?.lowercase()?.split(",")?.contains(skillName.lowercase()) ?: false
     }
 
+    fun isSkillExpert(skillName: String): Boolean {
+        return character.value?.expertiseSkills?.lowercase()?.split(",")?.contains(skillName.lowercase()) ?: false
+    }
+
     fun isSavingThrowProficient(ability: String): Boolean {
         return character.value?.savingThrowProficiencies?.uppercase()?.split(",")?.contains(ability.uppercase()) ?: false
     }
@@ -314,7 +325,26 @@ class CharacterDetailViewModel(
         }
     }
 
-    fun levelUp() = updateCharacter { it.copy(level = (it.level + 1).coerceAtMost(20), currentHitDice = it.currentHitDice + 1) }
+    fun levelUp() = updateCharacter { char ->
+        val conMod = getModifier(char.constitution)
+        val avgRoll = (char.hitDieType / 2) + 1
+        
+        val hpIncrease = when (char.hpCalculationMode) {
+            "Max" -> char.hitDieType + conMod
+            "Average" -> avgRoll + conMod
+            "Roll" -> Random.nextInt(1, char.hitDieType + 1) + conMod
+            "RollAboveAverage" -> maxOf(Random.nextInt(1, char.hitDieType + 1), avgRoll) + conMod
+            else -> avgRoll + conMod
+        }.coerceAtLeast(1)
+
+        char.copy(
+            level = (char.level + 1).coerceAtMost(20),
+            maxHp = char.maxHp + hpIncrease,
+            currentHp = char.currentHp + hpIncrease,
+            currentHitDice = char.currentHitDice + 1
+        )
+    }
+
     fun updateExperience(xp: Int) = updateCharacter { it.copy(experience = xp) }
     fun updateDeathSaves(successes: Int, failures: Int) = updateCharacter { 
         it.copy(deathSaveSuccesses = successes.coerceIn(0, 3), deathSaveFailures = failures.coerceIn(0, 3)) 
@@ -474,4 +504,30 @@ class CharacterDetailViewModel(
 
     suspend fun fetchSpellDetails(index: String) = srdRepository.fetchSpell(index)
     suspend fun fetchEquipmentDetails(index: String) = srdRepository.fetchEquipment(index)
+
+    suspend fun fetchFeatureDetails(index: String, type: String): Result<FeatureInfo> = when (type) {
+        "Trait" -> srdRepository.fetchRacialFeature(index).map { 
+            FeatureInfo(it.name, it.desc.joinToString("\n"), "Race")
+        }
+        "Feature" -> srdRepository.fetchClassFeature(index).map { 
+            FeatureInfo(it.name, it.desc.joinToString("\n"), "Class")
+        }
+        "Background" -> {
+            val bgIndex = index.removePrefix("bg-feature-")
+            srdRepository.fetchBackground(bgIndex).map { 
+                FeatureInfo(it.backgroundFeature.name, it.backgroundFeature.desc.joinToString("\n"), "Background")
+            }
+        }
+        else -> Result.failure(Exception("Unknown feature type"))
+    }
+
+    fun updateSkillProficiency(skillName: String, isProficient: Boolean, isExpert: Boolean) = updateCharacter { char ->
+        val skills = char.skillProficiencies.split(",").filter { it.isNotBlank() }.toMutableSet()
+        val experts = char.expertiseSkills.split(",").filter { it.isNotBlank() }.toMutableSet()
+        
+        if (isProficient) skills.add(skillName) else skills.remove(skillName)
+        if (isExpert) experts.add(skillName) else experts.remove(skillName)
+        
+        char.copy(skillProficiencies = skills.joinToString(","), expertiseSkills = experts.joinToString(","))
+    }
 }

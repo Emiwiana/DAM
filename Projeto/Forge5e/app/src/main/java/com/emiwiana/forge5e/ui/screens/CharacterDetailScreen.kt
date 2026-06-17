@@ -1,5 +1,6 @@
 package com.emiwiana.forge5e.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,9 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.emiwiana.forge5e.model.db.CharacterEntity
-import com.emiwiana.forge5e.model.db.CharacterEquipmentEntity
-import com.emiwiana.forge5e.model.db.CharacterSpellEntity
+import com.emiwiana.forge5e.model.db.*
 import com.emiwiana.forge5e.model.domain.EquipmentItem
 import com.emiwiana.forge5e.model.repository.toDomainModel
 import com.emiwiana.forge5e.ui.components.browser.FeatureCard
@@ -28,6 +27,7 @@ import com.emiwiana.forge5e.ui.components.character.equipment.MoneyTrackerWidget
 import com.emiwiana.forge5e.ui.components.character.spells.SpellItem
 import com.emiwiana.forge5e.ui.components.character.spells.SpellStatsWidget
 import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
+import com.emiwiana.forge5e.viewModel.FeatureInfo
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -298,6 +298,9 @@ fun EquipmentItemRow(item: CharacterEquipmentEntity, viewModel: CharacterDetailV
 @Composable
 fun FeaturesTab(viewModel: CharacterDetailViewModel) {
     val features by viewModel.features.collectAsState()
+    var selectedFeature by remember { mutableStateOf<CharacterFeatureEntity?>(null) }
+    var featureDetail by remember { mutableStateOf<FeatureInfo?>(null) }
+    val scope = rememberCoroutineScope()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -308,9 +311,68 @@ fun FeaturesTab(viewModel: CharacterDetailViewModel) {
             item { Text("No features found for this character's race and class.") }
         }
         items(features) { feature ->
-            FeatureCard(feature)
+            FeatureItemRow(feature, onClick = {
+                selectedFeature = feature
+                scope.launch {
+                    viewModel.fetchFeatureDetails(feature.featureIndex, feature.featureType).onSuccess {
+                        featureDetail = it
+                    }
+                }
+            })
         }
     }
+
+    if (selectedFeature != null) {
+        FeatureInfoDialog(
+            title = selectedFeature?.name ?: "",
+            detail = featureDetail,
+            onDismiss = {
+                selectedFeature = null
+                featureDetail = null
+            }
+        )
+    }
+}
+
+@Composable
+fun FeatureItemRow(feature: CharacterFeatureEntity, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(feature.name, style = MaterialTheme.typography.titleMedium)
+                Text(feature.featureType, style = MaterialTheme.typography.bodySmall)
+            }
+            Surface(
+                shape = MaterialTheme.shapes.extraSmall,
+                color = if (feature.source == "Race") MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Text(feature.source, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun FeatureInfoDialog(title: String, detail: FeatureInfo?, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            if (detail != null) {
+                Text(detail.description)
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
 }
 
 @Composable
@@ -380,8 +442,8 @@ fun SpellcastingSettingsDialog(character: CharacterEntity, viewModel: CharacterD
                     Checkbox(checked = preparesSpells, onCheckedChange = { preparesSpells = it })
                     Text("Prepares Spells")
                 }
-                TextField(value = maxPrepared, onValueChange = { if (it.all { c -> c.isDigit() }) maxPrepared = it }, label = { Text("Max Prepared") }, enabled = preparesSpells)
-                TextField(value = maxKnown, onValueChange = { if (it.all { c -> c.isDigit() }) maxKnown = it }, label = { Text("Max Known") })
+                TextField(value = maxPrepared, onValueChange = { maxPrepared = it }, label = { Text("Max Prepared Spells") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                TextField(value = maxKnown, onValueChange = { maxKnown = it }, label = { Text("Max Known Spells") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
             }
         },
         confirmButton = {
@@ -389,7 +451,8 @@ fun SpellcastingSettingsDialog(character: CharacterEntity, viewModel: CharacterD
                 viewModel.updateSpellcastingLimits(preparesSpells, maxPrepared.toIntOrNull() ?: 0, maxKnown.toIntOrNull() ?: 0)
                 onDismiss()
             }) { Text("Save") }
-        }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 

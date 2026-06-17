@@ -52,6 +52,7 @@ data class CharacterBuilderState(
     val availableSubclasses: List<APIReference> = emptyList(),
     val startingEquipment: ClassStartingEquipment? = null,
     val equipmentSelections: Map<Int, String> = emptyMap(), // Choice Index -> Equipment Index
+    val skillSelections: Map<Int, List<String>> = emptyMap(), // Choice Index -> Selected Skill Indices
 
     // Step 5: Feat
     val selectedFeat: Feat? = null,
@@ -153,7 +154,7 @@ class CharacterBuilderViewModel(
     fun selectClass(classIndex: String) {
         viewModelScope.launch {
             srdRepository.fetchCharacterClass(classIndex).onSuccess { clazz ->
-                _uiState.update { it.copy(selectedClass = clazz, selectedSubclass = null, equipmentSelections = emptyMap()) }
+                _uiState.update { it.copy(selectedClass = clazz, selectedSubclass = null, equipmentSelections = emptyMap(), skillSelections = emptyMap()) }
                 srdRepository.fetchClassSubclasses(classIndex).onSuccess { subclasses ->
                     _uiState.update { it.copy(availableSubclasses = subclasses.results) }
                 }
@@ -173,6 +174,25 @@ class CharacterBuilderViewModel(
             val newSelections = state.equipmentSelections.toMutableMap()
             newSelections[choiceIndex] = equipmentIndex
             state.copy(equipmentSelections = newSelections)
+        }
+    }
+
+    fun selectSkill(choiceIndex: Int, skillIndex: String) {
+        _uiState.update { state ->
+            val currentSelections = state.skillSelections[choiceIndex] ?: emptyList()
+            val maxSelections = state.selectedClass?.proficiencyChoices?.getOrNull(choiceIndex)?.choose ?: 1
+            
+            val newSelections = if (currentSelections.contains(skillIndex)) {
+                currentSelections - skillIndex
+            } else if (currentSelections.size < maxSelections) {
+                currentSelections + skillIndex
+            } else {
+                currentSelections
+            }
+            
+            val newMap = state.skillSelections.toMutableMap()
+            newMap[choiceIndex] = newSelections
+            state.copy(skillSelections = newMap)
         }
     }
 
@@ -207,7 +227,18 @@ class CharacterBuilderViewModel(
             val baseHp = (state.selectedClass?.hitDie ?: 10) + (fCon - 10) / 2
             
             val skillProfs = mutableSetOf<String>()
-            state.selectedBackground?.startingProficiencies?.filter { it.url.contains("skills") }?.forEach { skillProfs.add(it.name) }
+            // Background skills
+            state.selectedBackground?.startingProficiencies?.filter { it.url.contains("skills") }?.forEach { 
+                skillProfs.add(it.name.removePrefix("Skill: ")) 
+            }
+            // Class selected skills
+            state.skillSelections.values.flatten().forEach { skillIndex ->
+                // API skill indices are like "animal-handling"
+                val name = skillIndex.removePrefix("skill-")
+                    .split("-")
+                    .joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
+                skillProfs.add(name)
+            }
             
             val languages = state.selectedRace?.languages?.joinToString(",") { it.name } ?: ""
             val weaponProfs = state.selectedClass?.proficiencies?.filter { it.url.contains("equipment-categories") || it.url.contains("equipment") }?.joinToString(",") { it.name } ?: ""

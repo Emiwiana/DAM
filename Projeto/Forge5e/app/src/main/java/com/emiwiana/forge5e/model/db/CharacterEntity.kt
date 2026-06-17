@@ -47,6 +47,7 @@ data class CharacterEntity(
 
     // Proficiencies
     val skillProficiencies: String = "",
+    val expertiseSkills: String = "", // Skills with Expertise
     val savingThrowProficiencies: String = "",
     val weaponProficiencies: String = "",
     val armorProficiencies: String = "",
@@ -89,6 +90,15 @@ data class CharacterEntity(
     
     // Feats
     val featIndex: String = ""
+)
+
+@Entity(tableName = "character_features", primaryKeys = ["characterId", "featureIndex"])
+data class CharacterFeatureEntity(
+    val characterId: Int,
+    val featureIndex: String,
+    val name: String,
+    val source: String, // "Race", "Class", "Background"
+    val featureType: String // "Trait", "Feature", "Background"
 )
 
 @Entity(tableName = "character_equipment", primaryKeys = ["characterId", "equipmentIndex"])

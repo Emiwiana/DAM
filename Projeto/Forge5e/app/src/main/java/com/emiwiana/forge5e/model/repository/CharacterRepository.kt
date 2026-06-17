@@ -72,4 +72,13 @@ class CharacterRepository(private val characterDao: CharacterDao) {
     suspend fun removeTracker(tracker: CharacterTrackerEntity) {
         characterDao.deleteTracker(tracker)
     }
+
+    // Features
+    fun getCharacterFeatures(characterId: Int): Flow<List<CharacterFeatureEntity>> {
+        return characterDao.getCharacterFeatures(characterId)
+    }
+
+    suspend fun syncFeatures(characterId: Int, features: List<CharacterFeatureEntity>) {
+        characterDao.syncFeatures(characterId, features)
+    }
 }

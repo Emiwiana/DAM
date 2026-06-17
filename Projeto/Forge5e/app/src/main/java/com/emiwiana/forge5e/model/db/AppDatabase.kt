@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         CharacterEntity::class,
         CharacterEquipmentEntity::class,
         CharacterSpellEntity::class,
-        CharacterTrackerEntity::class
+        CharacterTrackerEntity::class,
+        CharacterFeatureEntity::class
     ],
-    version = 12,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

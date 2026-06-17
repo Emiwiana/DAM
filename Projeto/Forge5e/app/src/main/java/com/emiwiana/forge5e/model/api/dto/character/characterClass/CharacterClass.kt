@@ -12,8 +12,29 @@ data class CharacterClass(
     @SerialName("hit_die") val hitDie: Int,
     @SerialName("saving_throws") val savingThrows: List<APIReference>,
     val proficiencies: List<APIReference>,
+    @SerialName("proficiency_choices") val proficiencyChoices: List<ProficiencyChoice>? = null,
     @SerialName("class_levels") val classLevelsUrl: String,
     val spellcasting: ClassSpellcasting? = null
+)
+
+@Serializable
+data class ProficiencyChoice(
+    val desc: String? = null,
+    val choose: Int,
+    val type: String,
+    val from: ProficiencyOptionSet
+)
+
+@Serializable
+data class ProficiencyOptionSet(
+    @SerialName("option_set_type") val optionSetType: String,
+    val options: List<ProficiencyOption>? = null
+)
+
+@Serializable
+data class ProficiencyOption(
+    @SerialName("option_type") val optionType: String,
+    val item: APIReference? = null
 )
 
 @Serializable

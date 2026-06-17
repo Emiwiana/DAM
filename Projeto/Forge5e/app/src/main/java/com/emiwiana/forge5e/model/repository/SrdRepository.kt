@@ -53,6 +53,8 @@ class SrdRepository(private val apiService: SrdApiService) {
 
     suspend fun fetchClassSubclasses(index: String) = apiCall { apiService.getClassSubclasses(index) }
     suspend fun fetchClassFeatures(index: String) = apiCall { apiService.getClassFeatures(index) }
+    suspend fun fetchClassLevels(index: String) = apiCall { apiService.getClassLevels(index) }
+    suspend fun fetchSubclassLevels(index: String) = apiCall { apiService.getSubclassLevels(index) }
     suspend fun fetchRaceSubraces(index: String) = apiCall { apiService.getRaceSubraces(index) }
     suspend fun fetchRaceTraits(index: String) = apiCall { apiService.getRaceTraits(index) }
     suspend fun fetchClassStartingEquipment(index: String) = apiCall { apiService.getClassStartingEquipment(index) }

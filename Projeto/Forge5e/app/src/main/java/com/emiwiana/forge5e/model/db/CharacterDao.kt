@@ -55,4 +55,23 @@ interface CharacterDao {
 
     @Delete
     suspend fun deleteTracker(tracker: CharacterTrackerEntity)
+
+    // Features
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFeature(feature: CharacterFeatureEntity)
+
+    @Query("SELECT * FROM character_features WHERE characterId = :characterId")
+    fun getCharacterFeatures(characterId: Int): Flow<List<CharacterFeatureEntity>>
+
+    @Query("DELETE FROM character_features WHERE characterId = :characterId")
+    suspend fun deleteCharacterFeatures(characterId: Int)
+
+    @Delete
+    suspend fun deleteFeature(feature: CharacterFeatureEntity)
+
+    @Transaction
+    suspend fun syncFeatures(characterId: Int, features: List<CharacterFeatureEntity>) {
+        deleteCharacterFeatures(characterId)
+        features.forEach { insertFeature(it) }
+    }
 }

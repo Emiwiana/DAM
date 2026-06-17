@@ -93,7 +93,14 @@ private fun isStepValid(step: Int, state: com.emiwiana.forge5e.viewModel.Charact
     return when (step) {
         1 -> state.name.isNotBlank()
         3 -> state.selectedRace != null && state.selectedBackground != null
-        4 -> state.selectedClass != null
+        4 -> {
+            val classSelected = state.selectedClass != null
+            val skillsSelected = state.selectedClass?.proficiencyChoices?.indices?.all { idx ->
+                val selections = state.skillSelections[idx] ?: emptyList()
+                selections.size == state.selectedClass.proficiencyChoices[idx].choose
+            } ?: true
+            classSelected && skillsSelected
+        }
         5 -> state.selectedFeat != null
         else -> true
     }
@@ -252,6 +259,17 @@ fun RaceBackgroundStep(viewModel: CharacterBuilderViewModel) {
                 }
             }
         }
+        
+        uiState.selectedBackground?.let { bg ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Background Proficiencies", style = MaterialTheme.typography.titleSmall)
+                    bg.startingProficiencies?.forEach { prof ->
+                        Text("• ${prof.name}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -284,6 +302,33 @@ fun ClassStep(viewModel: CharacterBuilderViewModel) {
                     Text("Class Details", style = MaterialTheme.typography.titleSmall)
                     Text("Hit Die: d${clazz.hitDie}")
                     Text("Saving Throws: ${clazz.savingThrows.joinToString { it.name }}")
+                }
+            }
+            
+            clazz.proficiencyChoices?.forEachIndexed { index, choice ->
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val selections = uiState.skillSelections[index] ?: emptyList()
+                    Text(
+                        "${choice.desc ?: "Choose ${choice.choose}:"} (${selections.size}/${choice.choose})",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    choice.from.options?.forEach { option ->
+                        option.item?.let { skill ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().clickable { viewModel.selectSkill(index, skill.index) }
+                            ) {
+                                Checkbox(
+                                    checked = selections.contains(skill.index),
+                                    onCheckedChange = { viewModel.selectSkill(index, skill.index) }
+                                )
+                                Text(skill.name.removePrefix("Skill: "), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 }
             }
             
