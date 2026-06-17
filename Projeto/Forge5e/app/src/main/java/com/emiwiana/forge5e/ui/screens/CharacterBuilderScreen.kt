@@ -226,7 +226,7 @@ fun RaceBackgroundStep(viewModel: CharacterBuilderViewModel) {
             onSelect = { viewModel.selectRace(it.index) }
         )
 
-        if (uiState.availableSubraces.isNotEmpty()) {
+        if (uiState.availableRaces.isNotEmpty() && uiState.availableSubraces.isNotEmpty()) {
             SrdDropdown(
                 label = "Subrace",
                 selected = uiState.selectedSubrace?.name,
@@ -308,24 +308,24 @@ fun ClassStep(viewModel: CharacterBuilderViewModel) {
             clazz.proficiencyChoices?.forEachIndexed { index, choice ->
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val selections = uiState.skillSelections[index] ?: emptyList()
+                    val options = uiState.resolvedProficiencyOptions[index] ?: emptyList()
+                    
                     Text(
                         "${choice.desc ?: "Choose ${choice.choose}:"} (${selections.size}/${choice.choose})",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     
-                    choice.from.options?.forEach { option ->
-                        option.item?.let { skill ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().clickable { viewModel.selectSkill(index, skill.index) }
-                            ) {
-                                Checkbox(
-                                    checked = selections.contains(skill.index),
-                                    onCheckedChange = { viewModel.selectSkill(index, skill.index) }
-                                )
-                                Text(skill.name.removePrefix("Skill: "), style = MaterialTheme.typography.bodyMedium)
-                            }
+                    options.forEach { prof ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { viewModel.selectSkill(index, prof.index) }
+                        ) {
+                            Checkbox(
+                                checked = selections.contains(prof.index),
+                                onCheckedChange = { viewModel.selectSkill(index, prof.index) }
+                            )
+                            Text(prof.name.removePrefix("Skill: "), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

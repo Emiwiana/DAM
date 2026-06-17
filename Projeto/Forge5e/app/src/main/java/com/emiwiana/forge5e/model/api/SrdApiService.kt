@@ -7,9 +7,7 @@ import com.emiwiana.forge5e.model.api.dto.character.race.RacialFeature
 import com.emiwiana.forge5e.model.api.dto.character.race.Subrace
 import com.emiwiana.forge5e.model.api.dto.items.Equipment
 import com.emiwiana.forge5e.model.api.dto.magic.Spell
-import com.emiwiana.forge5e.model.api.dto.mechanics.Background
-import com.emiwiana.forge5e.model.api.dto.mechanics.Feat
-import com.emiwiana.forge5e.model.api.dto.mechanics.Skill
+import com.emiwiana.forge5e.model.api.dto.mechanics.*
 import retrofit2.http.GET
 import retrofit2.http.Path
 
@@ -64,4 +62,8 @@ interface SrdApiService {
     suspend fun getSubclassFeatures(@Path("index") index: String): APIReferenceList
     @GET("api/subraces/{index}/traits")
     suspend fun getSubraceTraits(@Path("index") index: String): APIReferenceList
+    
+    @GET("api/proficiencies") suspend fun getProficiencies(): APIReferenceList
+    @GET("api/proficiencies/{index}") suspend fun getProficiencyDetails(@Path("index") index: String): Proficiency
+    @GET("api/proficiency-categories/{index}") suspend fun getProficiencyCategoryDetails(@Path("index") index: String): ProficiencyCategory
 }

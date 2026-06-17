@@ -28,13 +28,15 @@ data class ProficiencyChoice(
 @Serializable
 data class ProficiencyOptionSet(
     @SerialName("option_set_type") val optionSetType: String,
-    val options: List<ProficiencyOption>? = null
+    val options: List<ProficiencyOption>? = null,
+    @SerialName("proficiency_category") val proficiencyCategory: APIReference? = null
 )
 
 @Serializable
 data class ProficiencyOption(
     @SerialName("option_type") val optionType: String,
-    val item: APIReference? = null
+    val item: APIReference? = null,
+    val choice: ProficiencyChoice? = null
 )
 
 @Serializable

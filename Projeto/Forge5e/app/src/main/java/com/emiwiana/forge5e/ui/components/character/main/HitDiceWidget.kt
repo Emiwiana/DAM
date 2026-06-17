@@ -16,12 +16,12 @@ fun HitDiceWidget(character: CharacterEntity, viewModel: CharacterDetailViewMode
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Hit Dice", style = MaterialTheme.typography.labelSmall)
+            Text("Hit Dice (D${character.hitDieType})", style = MaterialTheme.typography.labelSmall)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { viewModel.updateHitDice(character.currentHitDice - 1) }) {
                     Text("-")
                 }
-                Text("${character.currentHitDice} / ${character.level}", style = MaterialTheme.typography.titleLarge)
+                Text("${character.currentHitDice}", style = MaterialTheme.typography.titleLarge)
                 IconButton(onClick = { viewModel.updateHitDice(character.currentHitDice + 1) }) {
                     Text("+")
                 }

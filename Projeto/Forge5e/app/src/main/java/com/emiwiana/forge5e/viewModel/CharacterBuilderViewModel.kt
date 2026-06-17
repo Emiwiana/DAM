@@ -9,6 +9,7 @@ import com.emiwiana.forge5e.model.api.dto.character.race.Race
 import com.emiwiana.forge5e.model.api.dto.character.race.Subrace
 import com.emiwiana.forge5e.model.api.dto.mechanics.Background
 import com.emiwiana.forge5e.model.api.dto.mechanics.Feat
+import com.emiwiana.forge5e.model.api.dto.mechanics.ProficiencyCategory
 import com.emiwiana.forge5e.model.db.CharacterEntity
 import com.emiwiana.forge5e.model.db.CharacterEquipmentEntity
 import com.emiwiana.forge5e.model.repository.CharacterRepository
@@ -52,7 +53,8 @@ data class CharacterBuilderState(
     val availableSubclasses: List<APIReference> = emptyList(),
     val startingEquipment: ClassStartingEquipment? = null,
     val equipmentSelections: Map<Int, String> = emptyMap(), // Choice Index -> Equipment Index
-    val skillSelections: Map<Int, List<String>> = emptyMap(), // Choice Index -> Selected Skill Indices
+    val skillSelections: Map<Int, List<String>> = emptyMap(), // Choice Index -> Selected Prof Indices
+    val resolvedProficiencyOptions: Map<Int, List<APIReference>> = emptyMap(), // Choice Index -> List of available refs
 
     // Step 5: Feat
     val selectedFeat: Feat? = null,
@@ -154,7 +156,16 @@ class CharacterBuilderViewModel(
     fun selectClass(classIndex: String) {
         viewModelScope.launch {
             srdRepository.fetchCharacterClass(classIndex).onSuccess { clazz ->
-                _uiState.update { it.copy(selectedClass = clazz, selectedSubclass = null, equipmentSelections = emptyMap(), skillSelections = emptyMap()) }
+                _uiState.update { it.copy(
+                    selectedClass = clazz, 
+                    selectedSubclass = null, 
+                    equipmentSelections = emptyMap(), 
+                    skillSelections = emptyMap(),
+                    resolvedProficiencyOptions = emptyMap()
+                ) }
+                
+                resolveProficiencyChoices(clazz)
+                
                 srdRepository.fetchClassSubclasses(classIndex).onSuccess { subclasses ->
                     _uiState.update { it.copy(availableSubclasses = subclasses.results) }
                 }
@@ -163,6 +174,31 @@ class CharacterBuilderViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun resolveProficiencyChoices(clazz: CharacterClass) {
+        val resolved = mutableMapOf<Int, List<APIReference>>()
+        clazz.proficiencyChoices?.forEachIndexed { index, choice ->
+            val options = mutableListOf<APIReference>()
+            choice.from.options?.forEach { opt ->
+                if (opt.item != null) {
+                    options.add(opt.item)
+                } else if (opt.choice != null) {
+                    if (opt.choice.from.proficiencyCategory != null) {
+                        srdRepository.getProficiencyCategoryDetails(opt.choice.from.proficiencyCategory.index).onSuccess { cat: ProficiencyCategory ->
+                            options.addAll(cat.proficiencies)
+                        }
+                    }
+                }
+            }
+            if (choice.from.proficiencyCategory != null) {
+                srdRepository.getProficiencyCategoryDetails(choice.from.proficiencyCategory.index).onSuccess { cat: ProficiencyCategory ->
+                    options.addAll(cat.proficiencies)
+                }
+            }
+            resolved[index] = options.distinctBy { it.index }
+        }
+        _uiState.update { it.copy(resolvedProficiencyOptions = resolved) }
     }
 
     fun selectSubclass(subclassRef: APIReference) {
@@ -207,6 +243,24 @@ class CharacterBuilderViewModel(
     fun nextStep() { if (_uiState.value.step < _uiState.value.maxSteps) _uiState.update { it.copy(step = it.step + 1) } }
     fun previousStep() { _uiState.update { it.copy(step = (it.step - 1).coerceAtLeast(1)) } }
 
+    private fun isWeapon(prof: APIReference): Boolean {
+        val idx = prof.index.lowercase()
+        val name = prof.name.lowercase()
+        val url = prof.url.lowercase()
+        return url.contains("weapon") || idx.contains("weapon") || name.contains("weapon") ||
+                idx.contains("simple") || idx.contains("martial") ||
+                listOf("dagger", "dart", "sling", "quarterstaff", "crossbow", "longsword", "shortsword", "rapier", "scimitar", "greataxe", "greatsword", "halberd", "longbow", "shortbow", "mace", "morningstar", "pike", "trident", "warhammer", "war-pick", "flail", "glaive", "javelin", "lance", "sickle", "spear", "club")
+                    .any { idx.contains(it) }
+    }
+
+    private fun isArmor(prof: APIReference): Boolean {
+        val idx = prof.index.lowercase()
+        val name = prof.name.lowercase()
+        val url = prof.url.lowercase()
+        return url.contains("armor") || idx.contains("armor") || name.contains("armor") ||
+                idx.contains("shield") || name.contains("shield")
+    }
+
     fun finishCreation() {
         val state = _uiState.value
         viewModelScope.launch {
@@ -224,25 +278,43 @@ class CharacterBuilderViewModel(
             applyBonuses(state.selectedRace?.abilityBonuses)
             applyBonuses(state.selectedSubrace?.abilityBonuses)
 
-            val baseHp = (state.selectedClass?.hitDie ?: 10) + (fCon - 10) / 2
+            val baseHp = (state.selectedClass?.hitDie ?: 10) + (fStr.let { 0 } /* Fix: use con mod */) // Actually con mod
+            val conMod = (fCon - 10) / 2
+            val finalBaseHp = (state.selectedClass?.hitDie ?: 10) + conMod
             
             val skillProfs = mutableSetOf<String>()
-            // Background skills
-            state.selectedBackground?.startingProficiencies?.filter { it.url.contains("skills") }?.forEach { 
-                skillProfs.add(it.name.removePrefix("Skill: ")) 
+            val toolProfs = mutableSetOf<String>()
+            val armorProfsList = mutableSetOf<String>()
+            val weaponProfsList = mutableSetOf<String>()
+            
+            fun categorize(r: APIReference) {
+                val name = r.name
+                if (r.url.contains("skills") || r.index.startsWith("skill-")) {
+                    skillProfs.add(name.removePrefix("Skill: "))
+                } else if (isArmor(r)) {
+                    armorProfsList.add(name)
+                } else if (isWeapon(r)) {
+                    weaponProfsList.add(name)
+                } else {
+                    toolProfs.add(name)
+                }
             }
-            // Class selected skills
-            state.skillSelections.values.flatten().forEach { skillIndex ->
-                // API skill indices are like "animal-handling"
-                val name = skillIndex.removePrefix("skill-")
-                    .split("-")
-                    .joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
-                skillProfs.add(name)
+
+            // Background proficiencies
+            state.selectedBackground?.startingProficiencies?.forEach { categorize(it) }
+            
+            // Class selected proficiencies
+            state.skillSelections.forEach { (choiceIdx, selections) ->
+                val available = state.resolvedProficiencyOptions[choiceIdx] ?: emptyList()
+                selections.forEach { selIndex ->
+                    available.find { it.index == selIndex }?.let { categorize(it) }
+                }
             }
             
+            // Class base proficiencies
+            state.selectedClass?.proficiencies?.forEach { categorize(it) }
+            
             val languages = state.selectedRace?.languages?.joinToString(",") { it.name } ?: ""
-            val weaponProfs = state.selectedClass?.proficiencies?.filter { it.url.contains("equipment-categories") || it.url.contains("equipment") }?.joinToString(",") { it.name } ?: ""
-            val armorProfs = state.selectedClass?.proficiencies?.filter { it.name.lowercase().contains("armor") }?.joinToString(",") { it.name } ?: ""
 
             val character = CharacterEntity(
                 name = state.name.ifBlank { "New Hero" },
@@ -259,7 +331,7 @@ class CharacterBuilderViewModel(
                 level = 1,
                 strength = fStr, dexterity = fDex, constitution = fCon,
                 intelligence = fInt, wisdom = fWis, charisma = fCha,
-                maxHp = baseHp, currentHp = baseHp,
+                maxHp = finalBaseHp, currentHp = finalBaseHp,
                 hitDieType = state.selectedClass?.hitDie ?: 8,
                 currentHitDice = 1,
                 useMilestones = state.useMilestones, useEncumbrance = state.useEncumbrance,
@@ -269,8 +341,9 @@ class CharacterBuilderViewModel(
                 spellcastingAbility = state.selectedClass?.spellcasting?.spellcastingAbility?.name ?: "INT",
                 savingThrowProficiencies = state.selectedClass?.savingThrows?.joinToString(",") { it.name } ?: "",
                 skillProficiencies = skillProfs.joinToString(","),
-                weaponProficiencies = weaponProfs,
-                armorProficiencies = armorProfs,
+                weaponProficiencies = weaponProfsList.joinToString(","),
+                armorProficiencies = armorProfsList.joinToString(","),
+                toolProficiencies = toolProfs.joinToString(","),
                 languages = languages,
                 baseSpeed = state.selectedRace?.speed ?: 30
             )

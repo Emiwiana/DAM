@@ -37,6 +37,8 @@ class SrdRepository(private val apiService: SrdApiService) {
     suspend fun fetchSkill(index: String) = apiCall { apiService.getSkillDetails(index) }
     suspend fun fetchClassFeature(index: String) = apiCall { apiService.getClassFeatureDetails(index) }
     suspend fun fetchRacialFeature(index: String) = apiCall { apiService.getRacialTraitDetails(index) }
+    suspend fun fetchProficiency(index: String) = apiCall { apiService.getProficiencyDetails(index) }
+    suspend fun getProficiencyCategoryDetails(index: String) = apiCall { apiService.getProficiencyCategoryDetails(index) }
 
     // --- List Fetchers ---
     
