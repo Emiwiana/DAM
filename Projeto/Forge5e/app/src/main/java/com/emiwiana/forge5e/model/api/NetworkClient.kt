@@ -7,19 +7,26 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
+/**
+ * Singleton object that manages network configuration and provides access to API services.
+ */
 object NetworkClient {
     private const val BASE_URL = "https://www.dnd5eapi.co/"
 
-    // 1. Configure the JSON deserializer
+    /**
+     * JSON configuration for Kotlinx Serialization.
+     * Configured to ignore unknown keys and coerce input values for better stability with external APIs.
+     */
     private val jsonConfiguration = Json {
-        ignoreUnknownKeys = true // Crucial: ignores unmapped JSON properties from the API
-        coerceInputValues = true // Uses default property values if JSON returns invalid/mismatched values
+        ignoreUnknownKeys = true
+        coerceInputValues = true
     }
 
-    // 2. Configure OkHttpClient with logging and network timeouts
+    /**
+     * Configured OkHttpClient with logging and network timeouts.
+     */
     private val okHttpClient: OkHttpClient by lazy {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // Logs request and response lines, headers, and bodies (ideal for development debug logs)
             level = HttpLoggingInterceptor.Level.BODY
         }
 
@@ -31,7 +38,9 @@ object NetworkClient {
             .build()
     }
 
-    // 3. Build the primary Retrofit instance
+    /**
+     * Primary Retrofit instance for the D&D 5e API.
+     */
     private val retrofit: Retrofit by lazy {
         val contentType = "application/json".toMediaType()
 
@@ -42,7 +51,9 @@ object NetworkClient {
             .build()
     }
 
-    // 4. Provide a public singleton access point to your endpoints
+    /**
+     * Singleton instance of the [SrdApiService].
+     */
     val srdApiService: SrdApiService by lazy {
         retrofit.create(SrdApiService::class.java)
     }

@@ -14,22 +14,43 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Stack
 
+/**
+ * ViewModel for the SRD Browser screen.
+ * Manages navigation, category selection, and fetching details for various D&D 5e elements.
+ *
+ * @property repository The repository used to fetch data from the SRD API.
+ */
 class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
 
     private val _categoryState = MutableStateFlow<CategoryUiState>(CategoryUiState.Idle)
+    /**
+     * State of the current category list (e.g., list of all spells).
+     */
     val categoryState = _categoryState.asStateFlow()
 
     private val _cardState = MutableStateFlow<CardUiState>(CardUiState.Idle)
+    /**
+     * State of the detailed card currently being viewed.
+     */
     val cardState = _cardState.asStateFlow()
 
     private val _subItemsState = MutableStateFlow<SubItemsUiState>(SubItemsUiState.Idle)
+    /**
+     * State of additional sub-items related to the current selection (e.g., class features).
+     */
     val subItemsState = _subItemsState.asStateFlow()
 
     private val _selectedCategory = MutableStateFlow(BrowseCategory.CLASS)
+    /**
+     * The currently active browsing category.
+     */
     val selectedCategory = _selectedCategory.asStateFlow()
 
     private val history = Stack<Pair<String, BrowseCategory>>()
     private val _canGoBack = MutableStateFlow(false)
+    /**
+     * Whether there is a previous item in the navigation history.
+     */
     val canGoBack = _canGoBack.asStateFlow()
 
     private var currentItem: Pair<String, BrowseCategory>? = null
@@ -38,6 +59,10 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
         selectCategory(_selectedCategory.value)
     }
 
+    /**
+     * Changes the current category and fetches its list of items.
+     * @param category The new category to browse.
+     */
     fun selectCategory(category: BrowseCategory) {
         _selectedCategory.value = category
         resetDetails()
@@ -63,11 +88,22 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Resets the detailed card and sub-items states.
+     */
     private fun resetDetails() {
         _cardState.value = CardUiState.Idle
         _subItemsState.value = SubItemsUiState.Idle
     }
 
+    /**
+     * Loads the details for a specific item and updates the UI state.
+     * Manages navigation history for drill-down views.
+     *
+     * @param index The unique index of the item to load.
+     * @param category The category the item belongs to.
+     * @param isBackNavigation True if this is triggered by navigating back in history.
+     */
     fun loadFeatureCard(index: String, category: BrowseCategory = _selectedCategory.value, isBackNavigation: Boolean = false) {
         if (!isBackNavigation) {
             currentItem?.let { history.push(it); _canGoBack.value = true }
@@ -95,6 +131,9 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Helper to update [cardState] and trigger sub-item loading if necessary.
+     */
     private fun handleSuccess(item: IBrowserItem, subItemLoader: (suspend () -> Unit)? = null) {
         _cardState.value = CardUiState.ShowBrowserItem(item)
         subItemLoader?.let {
@@ -103,6 +142,9 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Updates [subItemsState] with the provided collections.
+     */
     private fun updateSubItems(
         variants: List<APIReference> = emptyList(),
         features: List<APIReference> = emptyList(),
@@ -116,6 +158,9 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Navigates back to the previous item in the history stack.
+     */
     fun navigateBack() {
         if (history.isNotEmpty()) {
             val (index, category) = history.pop()
@@ -143,6 +188,9 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
     }
 }
 
+/**
+ * UI State for the related sub-items (features, subclasses, equipment) of a selected item.
+ */
 sealed interface SubItemsUiState {
     object Idle : SubItemsUiState
     object Loading : SubItemsUiState
@@ -155,6 +203,9 @@ sealed interface SubItemsUiState {
     data class Error(val message: String) : SubItemsUiState
 }
 
+/**
+ * UI State for the list of items in a category.
+ */
 sealed interface CategoryUiState {
     object Idle : CategoryUiState
     object Loading : CategoryUiState
@@ -162,6 +213,9 @@ sealed interface CategoryUiState {
     data class Error(val message: String) : CategoryUiState
 }
 
+/**
+ * UI State for the detailed display card.
+ */
 sealed interface CardUiState {
     object Idle : CardUiState
     object Loading : CardUiState

@@ -16,6 +16,10 @@ import com.emiwiana.forge5e.model.api.dto.mechanics.Skill
 import retrofit2.http.GET
 import retrofit2.http.Path
 
+/**
+ * Retrofit interface for the D&D 5e System Reference Document (SRD) API.
+ * Provides methods to fetch various game mechanics, classes, races, and more.
+ */
 interface SrdApiService {
     @GET("api/classes") suspend fun getClasses(): APIReferenceList
     @GET("api/races") suspend fun getRaces(): APIReferenceList
@@ -53,10 +57,8 @@ interface SrdApiService {
     suspend fun getRaceSubraces(@Path("index") index: String): APIReferenceList
     @GET("api/races/{index}/traits")
     suspend fun getRaceTraits(@Path("index") index: String): APIReferenceList
-
     @GET("api/classes/{index}/starting-equipment")
     suspend fun getClassStartingEquipment(@Path("index") index: String): ClassStartingEquipment
-
     @GET("api/subclasses/{index}/features")
     suspend fun getSubclassFeatures(@Path("index") index: String): APIReferenceList
     @GET("api/subraces/{index}/traits")

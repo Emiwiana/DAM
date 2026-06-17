@@ -29,6 +29,12 @@ import com.emiwiana.forge5e.model.domain.BrowseCategory
 import com.emiwiana.forge5e.ui.components.FeatureCard
 import com.emiwiana.forge5e.viewModel.*
 
+/**
+ * Main screen for browsing SRD content.
+ * Supports both portrait and landscape layouts with a responsive design.
+ *
+ * @param viewModel The [SrdBrowserViewModel] providing the state and logic.
+ */
 @Composable
 fun SrdBrowserScreen(viewModel: SrdBrowserViewModel) {
     val categoryState by viewModel.categoryState.collectAsState()
@@ -75,6 +81,10 @@ fun SrdBrowserScreen(viewModel: SrdBrowserViewModel) {
     }
 }
 
+/**
+ * Portrait-specific layout for the SRD Browser.
+ * Features an animated side menu for category and item selection.
+ */
 @Composable
 private fun PortraitLayout(
     menuOpen: Boolean,
@@ -129,6 +139,10 @@ private fun PortraitLayout(
     }
 }
 
+/**
+ * Landscape-specific layout for the SRD Browser.
+ * Displays the list and details side-by-side.
+ */
 @Composable
 private fun LandscapeLayout(
     canGoBack: Boolean,
@@ -163,6 +177,9 @@ private fun LandscapeLayout(
     }
 }
 
+/**
+ * Displays the detailed content of the selected item.
+ */
 @Composable
 private fun DetailContent(
     cardState: CardUiState,
@@ -186,6 +203,9 @@ private fun DetailContent(
     }
 }
 
+/**
+ * Sidebar menu content for portrait layout.
+ */
 @Composable
 private fun CategoryMenu(
     selectedCategory: BrowseCategory,
@@ -208,6 +228,9 @@ private fun CategoryMenu(
     }
 }
 
+/**
+ * Scrollable list of items within a category.
+ */
 @Composable
 private fun CategoryList(state: CategoryUiState, onItemClick: (APIReference) -> Unit) {
     when (state) {
@@ -224,6 +247,9 @@ private fun CategoryList(state: CategoryUiState, onItemClick: (APIReference) -> 
     }
 }
 
+/**
+ * Floating action buttons for navigation in portrait mode.
+ */
 @Composable
 private fun FloatingActionButtons(
     canGoBack: Boolean,
@@ -243,6 +269,9 @@ private fun FloatingActionButtons(
     }
 }
 
+/**
+ * Section displaying related items like features, variants, or equipment.
+ */
 @Composable
 private fun SubItemsSection(
     subItemsState: SubItemsUiState,
@@ -292,6 +321,9 @@ private fun SubItemsSection(
     }
 }
 
+/**
+ * Helper component for displaying a list of sub-items under a label.
+ */
 @Composable
 private fun SubItemCategory(label: String, items: List<APIReference>, onClick: (APIReference) -> Unit) {
     if (items.isNotEmpty()) {
@@ -307,6 +339,9 @@ private fun SubItemCategory(label: String, items: List<APIReference>, onClick: (
     }
 }
 
+/**
+ * Recursive component for displaying nested equipment options.
+ */
 @Composable
 private fun EquipmentOptionItem(option: EquipmentOption, onSubItemClick: (String, BrowseCategory) -> Unit, indent: Int = 16) {
     val itemRef = option.item ?: option.of
@@ -324,6 +359,9 @@ private fun EquipmentOptionItem(option: EquipmentOption, onSubItemClick: (String
     }
 }
 
+/**
+ * Scrollable tabs for selecting the browsing category.
+ */
 @Composable
 private fun CategoryTabs(selectedCategory: BrowseCategory, onCategorySelected: (BrowseCategory) -> Unit) {
     val categories = remember {

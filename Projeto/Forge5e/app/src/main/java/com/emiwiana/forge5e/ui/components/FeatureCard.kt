@@ -14,6 +14,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.emiwiana.forge5e.model.domain.IBrowserItem
 
+/**
+ * A card component that displays the details of an [IBrowserItem].
+ * It includes the item's name, subtitle, metadata, and description.
+ *
+ * @param item The [IBrowserItem] whose details should be displayed.
+ * @param modifier Modifier to be applied to the card.
+ */
 @Composable
 fun FeatureCard(
     item: IBrowserItem,
@@ -84,6 +91,9 @@ fun FeatureCard(
     }
 }
 
+/**
+ * Helper component to display a single metadata row with a label and value.
+ */
 @Composable
 private fun MetadataRow(label: String, value: String) {
     Row(
@@ -108,6 +118,9 @@ private fun MetadataRow(label: String, value: String) {
     }
 }
 
+/**
+ * A small badge used to indicate that an item is "Homebrew" (user-created).
+ */
 @Composable
 private fun HomebrewTag() {
     Box(

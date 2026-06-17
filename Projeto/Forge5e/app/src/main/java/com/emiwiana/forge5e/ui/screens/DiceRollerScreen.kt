@@ -14,6 +14,13 @@ import androidx.compose.ui.unit.dp
 import com.emiwiana.forge5e.viewModel.DiceRollerViewModel
 import com.emiwiana.forge5e.viewModel.RollUiState
 
+/**
+ * Screen that allows users to roll various types of dice (d4 to d100).
+ * Users can specify the number of dice and add a flat modifier to the result.
+ *
+ * @param viewModel The [DiceRollerViewModel] handling the rolling logic.
+ * @param onNavigateBack Callback to return to the previous screen.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiceRollerScreen(

@@ -10,12 +10,22 @@ import com.emiwiana.forge5e.model.api.dto.mechanics.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Repository class that handles data operations for the D&D 5e SRD.
+ * It abstracts the API calls and provides data to the ViewModels using [Result] wrappers.
+ *
+ * @property apiService The Retrofit API service used to fetch data.
+ */
 class SrdRepository(private val apiService: SrdApiService) {
 
+    /**
+     * Executes an API call on the IO dispatcher and wraps the result in a [Result].
+     */
     private suspend fun <T> apiCall(call: suspend () -> T): Result<T> =
         withContext(Dispatchers.IO) { runCatching { call() } }
 
     // --- Detail Fetchers ---
+    
     suspend fun fetchSpell(index: String) = apiCall { apiService.getSpellDetails(index) }
     suspend fun fetchCharacterClass(index: String) = apiCall { apiService.getClassDetails(index) }
     suspend fun fetchRace(index: String) = apiCall { apiService.getRaceDetails(index) }
@@ -29,6 +39,7 @@ class SrdRepository(private val apiService: SrdApiService) {
     suspend fun fetchRacialFeature(index: String) = apiCall { apiService.getRacialTraitDetails(index) }
 
     // --- List Fetchers ---
+    
     suspend fun fetchAllAvailableSpells() = apiCall { apiService.getSpells() }
     suspend fun fetchAllAvailableClasses() = apiCall { apiService.getClasses() }
     suspend fun fetchAllAvailableRaces() = apiCall { apiService.getRaces() }
@@ -39,6 +50,7 @@ class SrdRepository(private val apiService: SrdApiService) {
     suspend fun fetchAllAvailableSkills() = apiCall { apiService.getSkills() }
 
     // --- Contextual Fetchers ---
+
     suspend fun fetchClassSubclasses(index: String) = apiCall { apiService.getClassSubclasses(index) }
     suspend fun fetchClassFeatures(index: String) = apiCall { apiService.getClassFeatures(index) }
     suspend fun fetchRaceSubraces(index: String) = apiCall { apiService.getRaceSubraces(index) }

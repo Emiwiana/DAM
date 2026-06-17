@@ -8,6 +8,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/**
+ * The main menu screen of the application.
+ * Provides navigation buttons to major features like the SRD Browser and Dice Roller.
+ *
+ * @param onNavigateToBrowser Callback to navigate to the SRD Browser screen.
+ * @param onNavigateToDiceRoller Callback to navigate to the Dice Roller screen.
+ */
 @Composable
 fun MainMenuScreen(
     onNavigateToBrowser: () -> Unit,
