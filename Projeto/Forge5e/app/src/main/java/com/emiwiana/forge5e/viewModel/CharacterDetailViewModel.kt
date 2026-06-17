@@ -58,6 +58,9 @@ class CharacterDetailViewModel(
     private val _availableEquipment = MutableStateFlow<List<APIReference>>(emptyList())
     val availableEquipment: StateFlow<List<APIReference>> = _availableEquipment.asStateFlow()
 
+    private val _availableSpells = MutableStateFlow<List<APIReference>>(emptyList())
+    val availableSpells: StateFlow<List<APIReference>> = _availableSpells.asStateFlow()
+
     private val _armorClass = MutableStateFlow(10)
     val armorClass: StateFlow<Int> = _armorClass.asStateFlow()
 
@@ -94,6 +97,7 @@ class CharacterDetailViewModel(
             }
             .onEach { char ->
                 updateFeatures(char)
+                fetchAvailableSpells(char)
             }.launchIn(viewModelScope)
 
         combine(character, inventory, spells) { char, inv, spl ->
@@ -115,6 +119,71 @@ class CharacterDetailViewModel(
             srdRepository.fetchAllAvailableEquipment().onSuccess { list ->
                 _availableEquipment.value = list.results
             }
+        }
+    }
+
+    private fun fetchAvailableSpells(char: CharacterEntity) {
+        if (char.classIndex.isBlank()) return
+        viewModelScope.launch {
+            srdRepository.fetchClassSpells(char.classIndex).onSuccess { list ->
+                val highestSlot = getHighestSpellSlot(char.classIndex, char.level)
+                
+                // Fetch details in parallel to check levels
+                val jobs = list.results.map { spellRef ->
+                    async {
+                        srdRepository.fetchSpell(spellRef.index).getOrNull()
+                    }
+                }
+                val details = jobs.awaitAll().filterNotNull()
+                
+                val filteredSpells = details
+                    .filter { it.level <= highestSlot }
+                    .map { APIReference(it.index, it.name, "api/spells/${it.index}") }
+                    .sortedBy { it.name }
+
+                _availableSpells.value = filteredSpells
+            }
+        }
+    }
+
+    private fun getHighestSpellSlot(classIndex: String, level: Int): Int {
+        val fullCasters = listOf("wizard", "cleric", "druid", "bard", "sorcerer")
+        val halfCasters = listOf("paladin", "ranger")
+        
+        return when {
+            fullCasters.contains(classIndex.lowercase()) -> {
+                when {
+                    level >= 17 -> 9
+                    level >= 15 -> 8
+                    level >= 13 -> 7
+                    level >= 11 -> 6
+                    level >= 9 -> 5
+                    level >= 7 -> 4
+                    level >= 5 -> 3
+                    level >= 3 -> 2
+                    else -> 1
+                }
+            }
+            halfCasters.contains(classIndex.lowercase()) -> {
+                when {
+                    level >= 17 -> 5
+                    level >= 13 -> 4
+                    level >= 9 -> 3
+                    level >= 5 -> 2
+                    level >= 2 -> 1
+                    else -> 0
+                }
+            }
+            classIndex.lowercase() == "warlock" -> {
+                when {
+                    level >= 9 -> 5
+                    level >= 7 -> 4
+                    level >= 5 -> 3
+                    level >= 3 -> 2
+                    else -> 1
+                }
+            }
+            else -> 0
         }
     }
 
@@ -439,6 +508,19 @@ class CharacterDetailViewModel(
         }
     }
 
+    fun addSpellFromSrd(index: String) {
+        viewModelScope.launch {
+            srdRepository.fetchSpell(index).onSuccess { spell ->
+                characterRepository.addSpell(CharacterSpellEntity(
+                    characterId = characterId,
+                    spellIndex = spell.index,
+                    name = spell.name,
+                    isPrepared = true
+                ))
+            }
+        }
+    }
+
     fun toggleEquip(item: CharacterEquipmentEntity) {
         viewModelScope.launch {
             if (!item.isEquipped) {
@@ -490,7 +572,6 @@ class CharacterDetailViewModel(
         it.copy(preparesSpells = prepares, maxPreparedSpells = maxPrepared, maxKnownSpells = maxKnown)
     }
 
-    fun removeEquipment(item: CharacterEquipmentEntity) = viewModelScope.launch { characterRepository.removeEquipment(item) }
     fun removeSpell(spell: CharacterSpellEntity) = viewModelScope.launch { characterRepository.removeSpell(spell) }
     fun toggleSpellPrepared(spell: CharacterSpellEntity) = viewModelScope.launch { characterRepository.updateSpell(spell.copy(isPrepared = !spell.isPrepared)) }
 
@@ -501,6 +582,8 @@ class CharacterDetailViewModel(
         characterRepository.updateTracker(tracker.copy(current = current.coerceIn(0, tracker.max)))
     }
     fun removeTracker(tracker: CharacterTrackerEntity) = viewModelScope.launch { characterRepository.removeTracker(tracker) }
+
+    fun removeEquipment(item: CharacterEquipmentEntity) = viewModelScope.launch { characterRepository.removeEquipment(item) }
 
     suspend fun fetchSpellDetails(index: String) = srdRepository.fetchSpell(index)
     suspend fun fetchEquipmentDetails(index: String) = srdRepository.fetchEquipment(index)

@@ -50,6 +50,8 @@ interface SrdApiService {
     suspend fun getClassFeatures(@Path("index") index: String): APIReferenceList
     @GET("api/classes/{index}/levels")
     suspend fun getClassLevels(@Path("index") index: String): List<ClassLevel>
+    @GET("api/classes/{index}/spells")
+    suspend fun getClassSpells(@Path("index") index: String): APIReferenceList
     @GET("api/subclasses/{index}/levels")
     suspend fun getSubclassLevels(@Path("index") index: String): List<ClassLevel>
     @GET("api/races/{index}/subraces")

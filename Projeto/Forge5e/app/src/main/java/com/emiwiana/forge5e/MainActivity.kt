@@ -20,6 +20,7 @@ import com.emiwiana.forge5e.model.api.NetworkClient
 import com.emiwiana.forge5e.model.db.AppDatabase
 import com.emiwiana.forge5e.model.repository.CharacterRepository
 import com.emiwiana.forge5e.model.repository.SrdRepository
+import com.emiwiana.forge5e.ui.Screen
 import com.emiwiana.forge5e.ui.screens.CharacterBuilderScreen
 import com.emiwiana.forge5e.ui.screens.CharacterDetailScreen
 import com.emiwiana.forge5e.ui.screens.CharacterListScreen
@@ -77,7 +78,7 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate(Screen.CharacterDetail.createRoute(id))
                                 },
                                 onNavigateToBuilder = {
-                                    navController.navigate("builder")
+                                    navController.navigate(Screen.Builder.route)
                                 },
                                 onNavigateBack = { navController.popBackStack() }
                             )
@@ -106,7 +107,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("builder") {
+                        composable(Screen.Builder.route) {
                             val builderViewModel: CharacterBuilderViewModel = viewModel(
                                 factory = object : ViewModelProvider.Factory {
                                     @Suppress("UNCHECKED_CAST")

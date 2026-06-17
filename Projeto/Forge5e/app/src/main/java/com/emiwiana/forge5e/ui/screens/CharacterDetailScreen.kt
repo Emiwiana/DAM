@@ -16,10 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.emiwiana.forge5e.model.api.dto.APIReference
 import com.emiwiana.forge5e.model.db.*
 import com.emiwiana.forge5e.model.domain.EquipmentItem
 import com.emiwiana.forge5e.model.repository.toDomainModel
-import com.emiwiana.forge5e.ui.components.browser.FeatureCard
 import com.emiwiana.forge5e.ui.components.character.main.*
 import com.emiwiana.forge5e.ui.components.character.attacks.AttackItem
 import com.emiwiana.forge5e.ui.components.character.equipment.EncumbranceWidget
@@ -185,40 +185,63 @@ fun AttacksTab(viewModel: CharacterDetailViewModel) {
 @Composable
 fun SpellsTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
     val spells by viewModel.spells.collectAsState()
+    val availableSpells by viewModel.availableSpells.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
+    var showAddSpellDialog by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Spellcasting Stats", style = MaterialTheme.typography.titleMedium)
-                IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
+    Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Spellcasting Stats", style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
+                }
+            }
+
+            item { SpellStatsWidget(character, viewModel) }
+
+            if (character.preparesSpells) {
+                val (prepared, known) = spells.partition { it.isPrepared }
+                
+                item { SpellSectionHeader("Prepared Spells", prepared.size, character.maxPreparedSpells) }
+                items(prepared) { spell -> SpellItem(spell, viewModel, onRemove = { viewModel.removeSpell(spell) }) }
+
+                item { SpellSectionHeader("Known Spells", spells.size, character.maxKnownSpells, Modifier.padding(top = 16.dp)) }
+                items(known) { spell -> SpellItem(spell, viewModel, onRemove = { viewModel.removeSpell(spell) }) }
+            } else {
+                item { SpellSectionHeader("Spells", spells.size, character.maxKnownSpells) }
+                items(spells) { spell ->
+                    SpellItem(spell, viewModel, showPreparedCheckbox = false, onRemove = { viewModel.removeSpell(spell) })
+                }
             }
         }
 
-        item { SpellStatsWidget(character, viewModel) }
-
-        if (character.preparesSpells) {
-            val (prepared, known) = spells.partition { it.isPrepared }
-            
-            item { SpellSectionHeader("Prepared Spells", prepared.size, character.maxPreparedSpells) }
-            items(prepared) { spell -> SpellItem(spell, viewModel, onRemove = { viewModel.removeSpell(spell) }) }
-
-            item { SpellSectionHeader("Known Spells", spells.size, character.maxKnownSpells, Modifier.padding(top = 16.dp)) }
-            items(known) { spell -> SpellItem(spell, viewModel, onRemove = { viewModel.removeSpell(spell) }) }
-        } else {
-            item { SpellSectionHeader("Spells", spells.size, character.maxKnownSpells) }
-            items(spells) { spell ->
-                SpellItem(spell, viewModel, showPreparedCheckbox = false, onRemove = { viewModel.removeSpell(spell) })
+        if (spells.size < character.maxKnownSpells) {
+            Button(
+                onClick = { showAddSpellDialog = true },
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Add Spell")
             }
         }
     }
 
     if (showSettings) {
         SpellcastingSettingsDialog(character, viewModel, onDismiss = { showSettings = false })
+    }
+
+    if (showAddSpellDialog) {
+        SrdSpellDialog(
+            availableSpells = availableSpells.filter { avail -> spells.none { it.spellIndex == avail.index } },
+            onAdd = { viewModel.addSpellFromSrd(it) },
+            onDismiss = { showAddSpellDialog = false }
+        )
     }
 }
 
@@ -294,78 +317,119 @@ fun EquipmentItemRow(item: CharacterEquipmentEntity, viewModel: CharacterDetailV
 }
 
 @Composable
+fun SrdSpellDialog(
+    availableSpells: List<APIReference>,
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Select Spell", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(16.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(availableSpells) { spell ->
+                        ListItem(
+                            headlineContent = { Text(spell.name) },
+                            modifier = Modifier.clickable {
+                                onAdd(spell.index)
+                                onDismiss()
+                            }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    Text("Cancel")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun FeaturesTab(viewModel: CharacterDetailViewModel) {
     val features by viewModel.features.collectAsState()
-    var selectedFeature by remember { mutableStateOf<CharacterFeatureEntity?>(null) }
-    var featureDetail by remember { mutableStateOf<FeatureInfo?>(null) }
+    var selectedFeature by remember { mutableStateOf<FeatureInfo?>(null) }
     val scope = rememberCoroutineScope()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (features.isEmpty()) {
-            item { Text("No features found for this character's race and class.") }
-        }
         items(features) { feature ->
-            FeatureItemRow(feature, onClick = {
-                selectedFeature = feature
-                scope.launch {
-                    viewModel.fetchFeatureDetails(feature.featureIndex, feature.featureType).onSuccess {
-                        featureDetail = it
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        scope.launch {
+                            viewModel.fetchFeatureDetails(feature.featureIndex, feature.featureType)
+                                .onSuccess { selectedFeature = it }
+                        }
                     }
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(feature.name, style = MaterialTheme.typography.titleMedium)
+                    Text("${feature.source} | ${feature.featureType}", style = MaterialTheme.typography.labelSmall)
                 }
-            })
+            }
         }
     }
 
-    if (selectedFeature != null) {
-        FeatureInfoDialog(
-            title = selectedFeature?.name ?: "",
-            detail = featureDetail,
-            onDismiss = {
-                selectedFeature = null
-                featureDetail = null
-            }
+    selectedFeature?.let { info ->
+        AlertDialog(
+            onDismissRequest = { selectedFeature = null },
+            title = { Text(info.name) },
+            text = { Text(info.description) },
+            confirmButton = { TextButton(onClick = { selectedFeature = null }) { Text("Close") } }
         )
     }
 }
 
 @Composable
-fun FeatureItemRow(feature: CharacterFeatureEntity, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(feature.name, style = MaterialTheme.typography.titleMedium)
-                Text(feature.featureType, style = MaterialTheme.typography.bodySmall)
-            }
-            Surface(
-                shape = MaterialTheme.shapes.extraSmall,
-                color = if (feature.source == "Race") MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Text(feature.source, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+fun SrdEquipmentDialog(
+    availableEq: List<APIReference>,
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Add Equipment", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(16.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(availableEq) { eq ->
+                        ListItem(
+                            headlineContent = { Text(eq.name) },
+                            modifier = Modifier.clickable {
+                                onAdd(eq.index)
+                                onDismiss()
+                            }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Cancel") }
             }
         }
     }
 }
 
 @Composable
-fun FeatureInfoDialog(title: String, detail: FeatureInfo?, onDismiss: () -> Unit) {
+fun InfoDialog(item: EquipmentItem, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(item.name) },
         text = {
-            if (detail != null) {
-                Text(detail.description)
-            } else {
-                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            Column {
+                Text("Category: ${item.category}")
+                if (item.cost.isNotBlank()) Text("Cost: ${item.cost}")
+                Text("Weight: ${item.weight} lbs")
+                if (item.description.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(item.description)
                 }
             }
         },
@@ -374,43 +438,20 @@ fun FeatureInfoDialog(title: String, detail: FeatureInfo?, onDismiss: () -> Unit
 }
 
 @Composable
-private fun FeatureCard(feature: com.emiwiana.forge5e.viewModel.FeatureInfo) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(feature.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Surface(
-                    shape = MaterialTheme.shapes.extraSmall,
-                    color = if (feature.source == "Race") MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Text(feature.source, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(feature.description, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-// --- Specific Dialog Components ---
-
-@Composable
 fun ShortRestDialog(character: CharacterEntity, viewModel: CharacterDetailViewModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Short Rest") },
-        text = {
-            Column {
-                Text("Expend hit dice to heal. Remaining: ${character.currentHitDice}")
-                Spacer(Modifier.height(16.dp))
-                Button(
-                    onClick = { viewModel.spendHitDie() },
-                    enabled = character.currentHitDice > 0 && character.currentHp < character.maxHp,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Spend Hit Die") }
-            }
+        text = { Text("Use hit dice to heal or reset short-rest features?") },
+        confirmButton = {
+            Button(onClick = {
+                viewModel.shortRest()
+                onDismiss()
+            }) { Text("Rest") }
         },
-        confirmButton = { Button(onClick = { viewModel.shortRest(); onDismiss() }) { Text("Finish Rest") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
     )
 }
 
@@ -418,68 +459,47 @@ fun ShortRestDialog(character: CharacterEntity, viewModel: CharacterDetailViewMo
 fun LongRestConfirmDialog(viewModel: CharacterDetailViewModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Confirm Long Rest") },
-        text = { Text("A long rest restores all HP, spell slots, and resources.") },
-        confirmButton = { Button(onClick = { viewModel.longRest(); onDismiss() }) { Text("Confirm") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        title = { Text("Long Rest") },
+        text = { Text("Perform a long rest? This will restore all HP, half hit dice, and reset all features/slots.") },
+        confirmButton = {
+            Button(onClick = {
+                viewModel.longRest()
+                onDismiss()
+            }) { Text("Confirm") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
     )
 }
 
 @Composable
 fun SpellcastingSettingsDialog(character: CharacterEntity, viewModel: CharacterDetailViewModel, onDismiss: () -> Unit) {
-    var preparesSpells by remember { mutableStateOf(character.preparesSpells) }
+    var prepares by remember { mutableStateOf(character.preparesSpells) }
     var maxPrepared by remember { mutableStateOf(character.maxPreparedSpells.toString()) }
     var maxKnown by remember { mutableStateOf(character.maxKnownSpells.toString()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Spellcasting Configuration") },
+        title = { Text("Spellcasting Settings") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = preparesSpells, onCheckedChange = { preparesSpells = it })
+                    Checkbox(checked = prepares, onCheckedChange = { prepares = it })
                     Text("Prepares Spells")
                 }
-                TextField(value = maxPrepared, onValueChange = { maxPrepared = it }, label = { Text("Max Prepared Spells") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
-                TextField(value = maxKnown, onValueChange = { maxKnown = it }, label = { Text("Max Known Spells") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                OutlinedTextField(value = maxPrepared, onValueChange = { maxPrepared = it }, label = { Text("Max Prepared Spells") })
+                OutlinedTextField(value = maxKnown, onValueChange = { maxKnown = it }, label = { Text("Max Known Spells") })
             }
         },
         confirmButton = {
             Button(onClick = {
-                viewModel.updateSpellcastingLimits(preparesSpells, maxPrepared.toIntOrNull() ?: 0, maxKnown.toIntOrNull() ?: 0)
+                viewModel.updateSpellcastingLimits(prepares, maxPrepared.toIntOrNull() ?: 0, maxKnown.toIntOrNull() ?: 0)
                 onDismiss()
             }) { Text("Save") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-fun SrdEquipmentDialog(availableEq: List<com.emiwiana.forge5e.model.api.dto.APIReference>, onAdd: (String) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Equipment") },
-        text = {
-            Box(modifier = Modifier.height(300.dp)) {
-                LazyColumn {
-                    items(availableEq) { eq ->
-                        TextButton(onClick = { onAdd(eq.index); onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text(eq.name) }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
-    )
-}
-
-@Composable
-fun InfoDialog(itemDetail: EquipmentItem, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                FeatureCard(item = itemDetail)
-                Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End).padding(top = 8.dp)) { Text("Close") }
-            }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    }
+    )
 }
