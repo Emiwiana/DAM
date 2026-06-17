@@ -22,6 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.emiwiana.forge5e.model.api.dto.APIReference
+import com.emiwiana.forge5e.model.api.dto.character.characterClass.EquipmentOption
 import com.emiwiana.forge5e.model.domain.BrowseCategory
 import com.emiwiana.forge5e.ui.components.FeatureCard
 import com.emiwiana.forge5e.viewModel.*
@@ -34,234 +37,208 @@ fun SrdBrowserScreen(viewModel: SrdBrowserViewModel) {
     val canGoBack by viewModel.canGoBack.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
 
-    val configuration = LocalConfiguration.current
-    val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+    val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
     var menuOpen by remember { mutableStateOf(true) }
 
+    val onCategoryItemClick: (APIReference) -> Unit = { item ->
+        viewModel.loadFeatureCard(item.index)
+        if (isPortrait) menuOpen = false
+    }
+
     if (isPortrait) {
-        // Handle system back button: Close menu first, then navigate history
-        BackHandler(enabled = menuOpen || canGoBack) {
-            if (menuOpen) {
-                menuOpen = false
-            } else if (canGoBack) {
-                viewModel.navigateBack()
-            }
-        }
-
-        Box(modifier = Modifier.fillMaxSize()) {
-            // BACKGROUND: Feature Card Detail and Sub-items
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                when (cardState) {
-                    is CardUiState.Loading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
-                    is CardUiState.ShowBrowserItem -> {
-                        val browserItem = (cardState as CardUiState.ShowBrowserItem).item
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            FeatureCard(item = browserItem)
-
-                            // Subraces/Subclasses and Core features under the FeatureCard
-                            if (browserItem.category == BrowseCategory.CLASS || browserItem.category == BrowseCategory.RACE) {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                SubItemsSection(
-                                    subItemsState = subItemsState,
-                                    onSubItemClick = { index, isVariant ->
-                                        val targetCategory = when (browserItem.category) {
-                                            BrowseCategory.CLASS -> if (isVariant) BrowseCategory.SUBCLASS else BrowseCategory.CLASS_FEATURE
-                                            BrowseCategory.RACE -> if (isVariant) BrowseCategory.SUBRACE else BrowseCategory.RACIAL_FEATURE
-                                            else -> BrowseCategory.CLASS
-                                        }
-                                        viewModel.loadFeatureCard(index, targetCategory)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    else -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Select an item from the menu to view details.")
-                        }
-                    }
-                }
-            }
-
-            // FLOATING ACTION BUTTONS (when menu is closed)
-            if (!menuOpen) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .align(Alignment.BottomStart),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (canGoBack) {
-                        SmallFloatingActionButton(
-                            onClick = { viewModel.navigateBack() },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go Back")
-                        }
-                    }
-                    SmallFloatingActionButton(
-                        onClick = { menuOpen = true },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Icon(Icons.Default.Menu, contentDescription = "Open Menu")
-                    }
-                }
-            }
-
-            // OVERLAY MENU: MasterList content
-            AnimatedVisibility(
-                visible = menuOpen,
-                enter = slideInHorizontally(initialOffsetX = { -it }),
-                exit = slideOutHorizontally(targetOffsetX = { -it })
-            ) {
-                BackHandler { menuOpen = false }
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp
-                ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                CategoryTabs(
-                                    selectedCategory = selectedCategory,
-                                    onCategorySelected = { viewModel.selectCategory(it) }
-                                )
-                            }
-                            IconButton(onClick = { menuOpen = false }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close Menu")
-                            }
-                        }
-
-                        HorizontalDivider()
-
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            // Master List Items
-                            when (categoryState) {
-                                is CategoryUiState.Loading -> item {
-                                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator()
-                                    }
-                                }
-                                is CategoryUiState.Error -> item {
-                                    Text("Error loading list", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
-                                }
-                                is CategoryUiState.Success -> {
-                                    val items = (categoryState as CategoryUiState.Success).list
-                                    items(items) { item ->
-                                        ListItem(
-                                            headlineContent = { Text(item.name) },
-                                            modifier = Modifier.clickable {
-                                                viewModel.loadFeatureCard(item.index)
-                                                menuOpen = false
-                                            }
-                                        )
-                                    }
-                                }
-                                else -> {}
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        PortraitLayout(
+            menuOpen = menuOpen,
+            canGoBack = canGoBack,
+            categoryState = categoryState,
+            cardState = cardState,
+            subItemsState = subItemsState,
+            selectedCategory = selectedCategory,
+            onCloseMenu = { menuOpen = false },
+            onOpenMenu = { menuOpen = true },
+            onNavigateBack = { viewModel.navigateBack() },
+            onCategorySelected = { viewModel.selectCategory(it) },
+            onItemClick = onCategoryItemClick,
+            onSubItemClick = { index, category -> viewModel.loadFeatureCard(index, category) }
+        )
     } else {
-        // LANDSCAPE: Split design
-        Row(modifier = Modifier.fillMaxSize()) {
-            // LEFT COLUMN: Master List
-            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                CategoryTabs(
+        LandscapeLayout(
+            canGoBack = canGoBack,
+            categoryState = categoryState,
+            cardState = cardState,
+            subItemsState = subItemsState,
+            selectedCategory = selectedCategory,
+            onNavigateBack = { viewModel.navigateBack() },
+            onCategorySelected = { viewModel.selectCategory(it) },
+            onItemClick = onCategoryItemClick,
+            onSubItemClick = { index, category -> viewModel.loadFeatureCard(index, category) }
+        )
+    }
+}
+
+@Composable
+private fun PortraitLayout(
+    menuOpen: Boolean,
+    canGoBack: Boolean,
+    categoryState: CategoryUiState,
+    cardState: CardUiState,
+    subItemsState: SubItemsUiState,
+    selectedCategory: BrowseCategory,
+    onCloseMenu: () -> Unit,
+    onOpenMenu: () -> Unit,
+    onNavigateBack: () -> Unit,
+    onCategorySelected: (BrowseCategory) -> Unit,
+    onItemClick: (APIReference) -> Unit,
+    onSubItemClick: (String, BrowseCategory) -> Unit
+) {
+    BackHandler(enabled = menuOpen || canGoBack) {
+        if (menuOpen) onCloseMenu() else onNavigateBack()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        DetailContent(
+            cardState = cardState,
+            subItemsState = subItemsState,
+            onSubItemClick = onSubItemClick,
+            modifier = Modifier.padding(16.dp)
+        )
+
+        if (!menuOpen) {
+            FloatingActionButtons(
+                canGoBack = canGoBack,
+                onNavigateBack = onNavigateBack,
+                onOpenMenu = onOpenMenu,
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
+        }
+
+        AnimatedVisibility(
+            visible = menuOpen,
+            enter = slideInHorizontally(initialOffsetX = { -it }),
+            exit = slideOutHorizontally(targetOffsetX = { -it })
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), tonalElevation = 4.dp) {
+                CategoryMenu(
                     selectedCategory = selectedCategory,
-                    onCategorySelected = { viewModel.selectCategory(it) }
+                    categoryState = categoryState,
+                    onCategorySelected = onCategorySelected,
+                    onItemClick = onItemClick,
+                    onCloseMenu = onCloseMenu
                 )
+            }
+        }
+    }
+}
 
-                HorizontalDivider()
+@Composable
+private fun LandscapeLayout(
+    canGoBack: Boolean,
+    categoryState: CategoryUiState,
+    cardState: CardUiState,
+    subItemsState: SubItemsUiState,
+    selectedCategory: BrowseCategory,
+    onNavigateBack: () -> Unit,
+    onCategorySelected: (BrowseCategory) -> Unit,
+    onItemClick: (APIReference) -> Unit,
+    onSubItemClick: (String, BrowseCategory) -> Unit
+) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            CategoryTabs(selectedCategory, onCategorySelected)
+            HorizontalDivider()
+            CategoryList(categoryState, onItemClick)
+        }
 
-                when (categoryState) {
-                    is CategoryUiState.Loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                    is CategoryUiState.Error -> Text("Error loading list", color = MaterialTheme.colorScheme.error)
-                    is CategoryUiState.Success -> {
-                        val items = (categoryState as CategoryUiState.Success).list
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(items) { item ->
-                                ListItem(
-                                    headlineContent = { Text(item.name) },
-                                    modifier = Modifier.clickable { viewModel.loadFeatureCard(item.index) }
-                                )
-                            }
-                        }
-                    }
-                    else -> {}
+        VerticalDivider()
+
+        Column(modifier = Modifier.weight(1.5f).fillMaxHeight().padding(16.dp)) {
+            if (canGoBack) {
+                TextButton(onClick = onNavigateBack, modifier = Modifier.padding(bottom = 8.dp).align(Alignment.End)) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Go Back")
                 }
             }
+            DetailContent(cardState, subItemsState, onSubItemClick)
+        }
+    }
+}
 
-            VerticalDivider()
-
-            // RIGHT COLUMN: Feature Card Detail & Contextual Nested Items
-            Column(
-                modifier = Modifier
-                    .weight(1.5f)
-                    .fillMaxHeight()
-                    .padding(16.dp)
-            ) {
-                if (canGoBack) {
-                    TextButton(
-                        onClick = { viewModel.navigateBack() },
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Go Back")
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    when (cardState) {
-                        is CardUiState.Loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                        is CardUiState.ShowBrowserItem -> {
-                            val browserItem = (cardState as CardUiState.ShowBrowserItem).item
-                            FeatureCard(item = browserItem)
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Contextual Drill-Down Lists for Classes/Races
-                            if (browserItem.category == BrowseCategory.CLASS || browserItem.category == BrowseCategory.RACE) {
-                                SubItemsSection(
-                                    subItemsState = subItemsState,
-                                    onSubItemClick = { index, isVariant ->
-                                        val targetCategory = when (browserItem.category) {
-                                            BrowseCategory.CLASS -> if (isVariant) BrowseCategory.SUBCLASS else BrowseCategory.CLASS_FEATURE
-                                            BrowseCategory.RACE -> if (isVariant) BrowseCategory.SUBRACE else BrowseCategory.RACIAL_FEATURE
-                                            else -> BrowseCategory.CLASS
-                                        }
-                                        viewModel.loadFeatureCard(index, targetCategory)
-                                    }
-                                )
-                            }
-                        }
-                        else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Select an item from the list to view details.") }
-                    }
+@Composable
+private fun DetailContent(
+    cardState: CardUiState,
+    subItemsState: SubItemsUiState,
+    onSubItemClick: (String, BrowseCategory) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxSize()) {
+        when (cardState) {
+            is CardUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            is CardUiState.ShowBrowserItem -> {
+                Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    FeatureCard(item = cardState.item)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SubItemsSection(subItemsState, cardState.item.category, onSubItemClick)
                 }
             }
+            is CardUiState.Error -> Text(cardState.message, modifier = Modifier.align(Alignment.Center))
+            else -> Text("Select an item to view details.", modifier = Modifier.align(Alignment.Center))
+        }
+    }
+}
+
+@Composable
+private fun CategoryMenu(
+    selectedCategory: BrowseCategory,
+    categoryState: CategoryUiState,
+    onCategorySelected: (BrowseCategory) -> Unit,
+    onItemClick: (APIReference) -> Unit,
+    onCloseMenu: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.weight(1f)) {
+                CategoryTabs(selectedCategory, onCategorySelected)
+            }
+            IconButton(onClick = onCloseMenu) {
+                Icon(Icons.Default.Close, contentDescription = "Close Menu")
+            }
+        }
+        HorizontalDivider()
+        CategoryList(categoryState, onItemClick)
+    }
+}
+
+@Composable
+private fun CategoryList(state: CategoryUiState, onItemClick: (APIReference) -> Unit) {
+    when (state) {
+        is CategoryUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+        is CategoryUiState.Success -> {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(state.list) { item ->
+                    ListItem(headlineContent = { Text(item.name) }, modifier = Modifier.clickable { onItemClick(item) })
+                }
+            }
+        }
+        is CategoryUiState.Error -> Text(state.message, modifier = Modifier.padding(16.dp))
+        else -> {}
+    }
+}
+
+@Composable
+private fun FloatingActionButtons(
+    canGoBack: Boolean,
+    onNavigateBack: () -> Unit,
+    onOpenMenu: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (canGoBack) {
+            SmallFloatingActionButton(onClick = onNavigateBack, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go Back")
+            }
+        }
+        SmallFloatingActionButton(onClick = onOpenMenu, containerColor = MaterialTheme.colorScheme.primaryContainer) {
+            Icon(Icons.Default.Menu, contentDescription = "Open Menu")
         }
     }
 }
@@ -269,35 +246,44 @@ fun SrdBrowserScreen(viewModel: SrdBrowserViewModel) {
 @Composable
 private fun SubItemsSection(
     subItemsState: SubItemsUiState,
-    onSubItemClick: (String, Boolean) -> Unit
+    currentCategory: BrowseCategory,
+    onSubItemClick: (String, BrowseCategory) -> Unit
 ) {
     when (subItemsState) {
         is SubItemsUiState.Loading -> CircularProgressIndicator()
         is SubItemsUiState.Success -> {
             Column {
-                if (subItemsState.variants.isNotEmpty()) {
-                    Text("Variants & Archetypes", fontWeight = FontWeight.Bold)
-                    subItemsState.variants.forEach { variant ->
-                        Text(
-                            text = "• ${variant.name}",
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clickable { onSubItemClick(variant.index, true) }
-                                .padding(vertical = 4.dp, horizontal = 8.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
+                SubItemCategory("Variants & Archetypes", subItemsState.variants) { 
+                    val target = if (currentCategory == BrowseCategory.RACE) BrowseCategory.SUBRACE else BrowseCategory.SUBCLASS
+                    onSubItemClick(it.index, target) 
                 }
 
-                if (subItemsState.features.isNotEmpty()) {
-                    Text("Core Features", fontWeight = FontWeight.Bold)
-                    subItemsState.features.forEach { feature ->
-                        Text(
-                            text = "• ${feature.name}",
-                            modifier = Modifier
-                                .clickable { onSubItemClick(feature.index, false) }
-                                .padding(vertical = 4.dp, horizontal = 8.dp)
-                        )
+                val featureLabel = when (currentCategory) {
+                    BrowseCategory.RACE, BrowseCategory.SUBRACE -> "Racial Traits"
+                    BrowseCategory.SUBCLASS -> "Subclass Features"
+                    else -> "Core Features"
+                }
+                SubItemCategory(featureLabel, subItemsState.features) {
+                    val target = if (currentCategory == BrowseCategory.RACE || currentCategory == BrowseCategory.SUBRACE) BrowseCategory.RACIAL_FEATURE else BrowseCategory.CLASS_FEATURE
+                    onSubItemClick(it.index, target)
+                }
+
+                if (subItemsState.equipment.isNotEmpty() || subItemsState.equipmentChoices.isNotEmpty()) {
+                    val label = if (currentCategory == BrowseCategory.EQUIPMENT) "Contents" else "Starting Equipment"
+                    Text(label, fontWeight = FontWeight.Bold)
+                    subItemsState.equipment.forEach { eq ->
+                        eq.equipment?.let { ref ->
+                            Text(
+                                text = "• ${if (eq.quantity > 1) "${eq.quantity}x " else ""}${ref.name}",
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable { onSubItemClick(ref.index, BrowseCategory.EQUIPMENT) }.padding(vertical = 4.dp, horizontal = 8.dp)
+                            )
+                        }
+                    }
+                    subItemsState.equipmentChoices.forEach { choice ->
+                        choice.desc?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp, start = 8.dp)) }
+                        choice.from.options?.forEach { EquipmentOptionItem(it, onSubItemClick) }
+                        choice.from.equipmentCategory?.let { Text("  - Any ${it.name}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 2.dp, horizontal = 16.dp)) }
                     }
                 }
             }
@@ -307,27 +293,54 @@ private fun SubItemsSection(
 }
 
 @Composable
-private fun CategoryTabs(
-    selectedCategory: BrowseCategory,
-    onCategorySelected: (BrowseCategory) -> Unit
-) {
-    val categories = listOf(
-        BrowseCategory.CLASS to "Classes",
-        BrowseCategory.RACE to "Races",
-        BrowseCategory.SPELL to "Spells",
-        BrowseCategory.FEAT to "Feats",
-        BrowseCategory.BACKGROUND to "Backgrounds",
-        BrowseCategory.EQUIPMENT to "Equipment"
-    )
+private fun SubItemCategory(label: String, items: List<APIReference>, onClick: (APIReference) -> Unit) {
+    if (items.isNotEmpty()) {
+        Text(label, fontWeight = FontWeight.Bold)
+        items.forEach { item ->
+            Text(
+                text = "• ${item.name}",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onClick(item) }.padding(vertical = 4.dp, horizontal = 8.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun EquipmentOptionItem(option: EquipmentOption, onSubItemClick: (String, BrowseCategory) -> Unit, indent: Int = 16) {
+    val itemRef = option.item ?: option.of
+    itemRef?.let {
+        Text(
+            text = "  - ${option.count ?: ""} ${it.name}".trim(),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { onSubItemClick(it.index, BrowseCategory.EQUIPMENT) }.padding(vertical = 2.dp, horizontal = indent.dp)
+        )
+    }
+    option.items?.forEach { EquipmentOptionItem(it, onSubItemClick, indent + 8) }
+    option.choice?.let { choice ->
+        choice.desc?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp, start = indent.dp)) }
+        choice.from.options?.forEach { EquipmentOptionItem(it, onSubItemClick, indent + 8) }
+    }
+}
+
+@Composable
+private fun CategoryTabs(selectedCategory: BrowseCategory, onCategorySelected: (BrowseCategory) -> Unit) {
+    val categories = remember {
+        listOf(
+            BrowseCategory.CLASS to "Classes",
+            BrowseCategory.RACE to "Races",
+            BrowseCategory.SPELL to "Spells",
+            BrowseCategory.FEAT to "Feats",
+            BrowseCategory.BACKGROUND to "Backgrounds",
+            BrowseCategory.EQUIPMENT to "Equipment"
+        )
+    }
     val selectedIndex = categories.indexOfFirst { it.first == selectedCategory }.coerceAtLeast(0)
 
     ScrollableTabRow(selectedTabIndex = selectedIndex) {
         categories.forEach { (category, label) ->
-            Tab(
-                selected = selectedCategory == category,
-                onClick = { onCategorySelected(category) },
-                text = { Text(label) }
-            )
+            Tab(selected = selectedCategory == category, onClick = { onCategorySelected(category) }, text = { Text(label) })
         }
     }
 }

@@ -4,6 +4,7 @@ import com.emiwiana.forge5e.model.api.dto.*
 import com.emiwiana.forge5e.model.api.dto.character.characterClass.CharacterClass
 import com.emiwiana.forge5e.model.api.dto.character.characterClass.ClassFeature
 import com.emiwiana.forge5e.model.api.dto.character.characterClass.Subclass
+import com.emiwiana.forge5e.model.api.dto.character.characterClass.ClassStartingEquipment
 import com.emiwiana.forge5e.model.api.dto.character.race.Race
 import com.emiwiana.forge5e.model.api.dto.character.race.RacialFeature
 import com.emiwiana.forge5e.model.api.dto.character.race.Subrace
@@ -52,4 +53,12 @@ interface SrdApiService {
     suspend fun getRaceSubraces(@Path("index") index: String): APIReferenceList
     @GET("api/races/{index}/traits")
     suspend fun getRaceTraits(@Path("index") index: String): APIReferenceList
+
+    @GET("api/classes/{index}/starting-equipment")
+    suspend fun getClassStartingEquipment(@Path("index") index: String): ClassStartingEquipment
+
+    @GET("api/subclasses/{index}/features")
+    suspend fun getSubclassFeatures(@Path("index") index: String): APIReferenceList
+    @GET("api/subraces/{index}/traits")
+    suspend fun getSubraceTraits(@Path("index") index: String): APIReferenceList
 }

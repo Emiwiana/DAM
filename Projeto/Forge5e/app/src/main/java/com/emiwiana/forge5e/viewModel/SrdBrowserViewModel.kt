@@ -3,11 +3,13 @@ package com.emiwiana.forge5e.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.emiwiana.forge5e.model.api.dto.APIReference
+import com.emiwiana.forge5e.model.api.dto.APIReferenceList
+import com.emiwiana.forge5e.model.api.dto.character.characterClass.EquipmentChoice
+import com.emiwiana.forge5e.model.api.dto.mechanics.EquipmentQuantity
 import com.emiwiana.forge5e.model.domain.*
 import com.emiwiana.forge5e.model.repository.SrdRepository
 import com.emiwiana.forge5e.model.repository.toDomainModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Stack
@@ -15,21 +17,20 @@ import java.util.Stack
 class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
 
     private val _categoryState = MutableStateFlow<CategoryUiState>(CategoryUiState.Idle)
-    val categoryState: StateFlow<CategoryUiState> = _categoryState.asStateFlow()
+    val categoryState = _categoryState.asStateFlow()
 
     private val _cardState = MutableStateFlow<CardUiState>(CardUiState.Idle)
-    val cardState: StateFlow<CardUiState> = _cardState.asStateFlow()
+    val cardState = _cardState.asStateFlow()
 
     private val _subItemsState = MutableStateFlow<SubItemsUiState>(SubItemsUiState.Idle)
-    val subItemsState: StateFlow<SubItemsUiState> = _subItemsState.asStateFlow()
+    val subItemsState = _subItemsState.asStateFlow()
 
     private val _selectedCategory = MutableStateFlow(BrowseCategory.CLASS)
-    val selectedCategory: StateFlow<BrowseCategory> = _selectedCategory.asStateFlow()
+    val selectedCategory = _selectedCategory.asStateFlow()
 
-    // History tracking
     private val history = Stack<Pair<String, BrowseCategory>>()
     private val _canGoBack = MutableStateFlow(false)
-    val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
+    val canGoBack = _canGoBack.asStateFlow()
 
     private var currentItem: Pair<String, BrowseCategory>? = null
 
@@ -39,9 +40,7 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
 
     fun selectCategory(category: BrowseCategory) {
         _selectedCategory.value = category
-        _cardState.value = CardUiState.Idle
-        _subItemsState.value = SubItemsUiState.Idle
-        
+        resetDetails()
         history.clear()
         _canGoBack.value = false
         currentItem = null
@@ -57,79 +56,102 @@ class SrdBrowserViewModel(private val repository: SrdRepository) : ViewModel() {
                 BrowseCategory.EQUIPMENT -> repository.fetchAllAvailableEquipment()
                 else -> return@launch
             }
-
-            result.onSuccess { _categoryState.value = CategoryUiState.Success(it.results) }
-                .onFailure { 
-                    it.printStackTrace()
-                    _categoryState.value = CategoryUiState.Error("Failed to fetch ${category.name}: ${it.localizedMessage}") 
-                }
+            _categoryState.value = result.fold(
+                onSuccess = { CategoryUiState.Success(it.results) },
+                onFailure = { CategoryUiState.Error("Failed to fetch ${category.name}") }
+            )
         }
+    }
+
+    private fun resetDetails() {
+        _cardState.value = CardUiState.Idle
+        _subItemsState.value = SubItemsUiState.Idle
     }
 
     fun loadFeatureCard(index: String, category: BrowseCategory = _selectedCategory.value, isBackNavigation: Boolean = false) {
         if (!isBackNavigation) {
-            currentItem?.let {
-                history.push(it)
-                _canGoBack.value = true
-            }
+            currentItem?.let { history.push(it); _canGoBack.value = true }
         }
-        currentItem = Pair(index, category)
+        currentItem = index to category
 
         viewModelScope.launch {
             _cardState.value = CardUiState.Loading
-            _subItemsState.value = SubItemsUiState.Loading
+            _subItemsState.value = SubItemsUiState.Idle
 
-            when (category) {
-                BrowseCategory.CLASS -> {
-                    repository.fetchCharacterClass(index).onSuccess {
-                        _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel())
-                        loadClassSubItems(index)
-                    }.onFailure { _cardState.value = CardUiState.Error("Failed to load class") }
-                }
-                BrowseCategory.RACE -> {
-                    repository.fetchRace(index).onSuccess {
-                        _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel())
-                        loadRaceSubItems(index)
-                    }.onFailure { _cardState.value = CardUiState.Error("Failed to load race") }
-                }
-                BrowseCategory.SUBCLASS -> repository.fetchSubclass(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.CLASS_FEATURE -> repository.fetchClassFeature(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.SUBRACE -> repository.fetchSubrace(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.RACIAL_FEATURE -> repository.fetchRacialFeature(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.SPELL -> repository.fetchSpell(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.FEAT -> repository.fetchFeat(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.BACKGROUND -> repository.fetchBackground(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                BrowseCategory.EQUIPMENT -> repository.fetchEquipment(index).onSuccess { _cardState.value = CardUiState.ShowBrowserItem(it.toDomainModel()) }
-                else -> { _cardState.value = CardUiState.Error("Unsupported category") }
+            val result: Result<Unit> = when (category) {
+                BrowseCategory.CLASS -> repository.fetchCharacterClass(index).onSuccess { handleSuccess(it.toDomainModel()) { loadClassSubItems(index) } }.map { }
+                BrowseCategory.RACE -> repository.fetchRace(index).onSuccess { handleSuccess(it.toDomainModel()) { loadRaceSubItems(index) } }.map { }
+                BrowseCategory.SUBCLASS -> repository.fetchSubclass(index).onSuccess { handleSuccess(it.toDomainModel()) { loadContextualFeatures(index, repository::fetchSubclassFeatures, it.features) } }.map { }
+                BrowseCategory.SUBRACE -> repository.fetchSubrace(index).onSuccess { handleSuccess(it.toDomainModel()) { loadContextualFeatures(index, repository::fetchSubraceTraits, it.racialTraits) } }.map { }
+                BrowseCategory.BACKGROUND -> repository.fetchBackground(index).onSuccess { handleSuccess(it.toDomainModel()) { updateSubItems(equipment = it.startingEquipment ?: emptyList()) } }.map { }
+                BrowseCategory.EQUIPMENT -> repository.fetchEquipment(index).onSuccess { handleSuccess(it.toDomainModel()) { updateSubItems(equipment = it.contents ?: emptyList()) } }.map { }
+                BrowseCategory.CLASS_FEATURE -> repository.fetchClassFeature(index).onSuccess { handleSuccess(it.toDomainModel()) }.map { }
+                BrowseCategory.RACIAL_FEATURE -> repository.fetchRacialFeature(index).onSuccess { handleSuccess(it.toDomainModel()) }.map { }
+                BrowseCategory.SPELL -> repository.fetchSpell(index).onSuccess { handleSuccess(it.toDomainModel()) }.map { }
+                BrowseCategory.FEAT -> repository.fetchFeat(index).onSuccess { handleSuccess(it.toDomainModel()) }.map { }
+                else -> Result.failure(Exception("Unsupported category"))
             }
+            result.onFailure { _cardState.value = CardUiState.Error("Failed to load details") }
+        }
+    }
+
+    private fun handleSuccess(item: IBrowserItem, subItemLoader: (suspend () -> Unit)? = null) {
+        _cardState.value = CardUiState.ShowBrowserItem(item)
+        subItemLoader?.let {
+            _subItemsState.value = SubItemsUiState.Loading
+            viewModelScope.launch { it() }
+        }
+    }
+
+    private fun updateSubItems(
+        variants: List<APIReference> = emptyList(),
+        features: List<APIReference> = emptyList(),
+        equipment: List<EquipmentQuantity> = emptyList(),
+        equipmentChoices: List<EquipmentChoice> = emptyList()
+    ) {
+        _subItemsState.value = if (variants.isEmpty() && features.isEmpty() && equipment.isEmpty() && equipmentChoices.isEmpty()) {
+            SubItemsUiState.Idle
+        } else {
+            SubItemsUiState.Success(variants, features, equipment, equipmentChoices)
         }
     }
 
     fun navigateBack() {
         if (history.isNotEmpty()) {
-            val previous = history.pop()
+            val (index, category) = history.pop()
             _canGoBack.value = history.isNotEmpty()
-            loadFeatureCard(previous.first, previous.second, isBackNavigation = true)
+            loadFeatureCard(index, category, isBackNavigation = true)
         }
     }
 
     private suspend fun loadClassSubItems(classIndex: String) {
         val subclasses = repository.fetchClassSubclasses(classIndex).getOrNull()?.results ?: emptyList()
         val features = repository.fetchClassFeatures(classIndex).getOrNull()?.results ?: emptyList()
-        _subItemsState.value = SubItemsUiState.Success(subclasses, features)
+        val startingEq = repository.fetchClassStartingEquipment(classIndex).getOrNull()
+        updateSubItems(subclasses, features, startingEq?.startingEquipment ?: emptyList(), startingEq?.startingEquipmentOptions ?: emptyList())
     }
 
     private suspend fun loadRaceSubItems(raceIndex: String) {
         val subraces = repository.fetchRaceSubraces(raceIndex).getOrNull()?.results ?: emptyList()
         val traits = repository.fetchRaceTraits(raceIndex).getOrNull()?.results ?: emptyList()
-        _subItemsState.value = SubItemsUiState.Success(subraces, traits)
+        updateSubItems(variants = subraces, features = traits)
+    }
+
+    private suspend fun loadContextualFeatures(index: String, fetcher: suspend (String) -> Result<APIReferenceList>, fallback: List<APIReference>?) {
+        val apiItems = fetcher(index).getOrNull()?.results ?: emptyList()
+        updateSubItems(features = apiItems.ifEmpty { fallback ?: emptyList() })
     }
 }
 
 sealed interface SubItemsUiState {
     object Idle : SubItemsUiState
     object Loading : SubItemsUiState
-    data class Success(val variants: List<APIReference>, val features: List<APIReference>) : SubItemsUiState
+    data class Success(
+        val variants: List<APIReference> = emptyList(),
+        val features: List<APIReference> = emptyList(),
+        val equipment: List<EquipmentQuantity> = emptyList(),
+        val equipmentChoices: List<EquipmentChoice> = emptyList()
+    ) : SubItemsUiState
     data class Error(val message: String) : SubItemsUiState
 }
 

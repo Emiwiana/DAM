@@ -1,5 +1,6 @@
 package com.emiwiana.forge5e.model.api.dto.items
 import com.emiwiana.forge5e.model.api.dto.APIReference
+import com.emiwiana.forge5e.model.api.dto.mechanics.EquipmentQuantity
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 
@@ -14,7 +15,9 @@ data class Equipment(
     val cost: Cost? = null,
     val damage: Damage? = null,
     val weight: Double? = null,
-    val properties: List<APIReference>? = null
+    val properties: List<APIReference>? = null,
+    val contents: List<EquipmentQuantity>? = null,
+    val desc: List<String>? = null
 )
 
 @Serializable

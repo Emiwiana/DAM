@@ -21,6 +21,7 @@ data class BackgroundFeature(
 
 @Serializable
 data class EquipmentQuantity(
-    val equipment: APIReference,
-    val quantity: Int
+    val quantity: Int,
+    val equipment: APIReference? = null,
+    val item: APIReference? = null
 )

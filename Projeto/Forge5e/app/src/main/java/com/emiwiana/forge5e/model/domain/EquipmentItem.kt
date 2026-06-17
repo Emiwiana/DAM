@@ -1,5 +1,7 @@
 package com.emiwiana.forge5e.model.domain
 
+import com.emiwiana.forge5e.model.api.dto.APIReference
+
 data class EquipmentItem(
     override val id: String,
     override val name: String,
@@ -10,7 +12,7 @@ data class EquipmentItem(
     val damage: String?,           // e.g., "1d8 slashing"
     val properties: List<String>,  // e.g., ["Finesse", "Light", "Thrown"]
     override val isHomebrew: Boolean,
-
+    val contents: List<EquipmentContent> = emptyList()
 ) : IBrowserItem {
     // Hardcode the BrowseCategory for the UI layout/icons
     override val category: BrowseCategory = BrowseCategory.EQUIPMENT
@@ -28,3 +30,8 @@ data class EquipmentItem(
             }
         }
 }
+
+data class EquipmentContent(
+    val item: APIReference,
+    val quantity: Int
+)

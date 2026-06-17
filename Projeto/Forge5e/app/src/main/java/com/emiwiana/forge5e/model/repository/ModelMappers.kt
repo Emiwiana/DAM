@@ -13,6 +13,7 @@ import com.emiwiana.forge5e.model.api.dto.mechanics.Background
 import com.emiwiana.forge5e.model.api.dto.mechanics.Feat
 import com.emiwiana.forge5e.model.domain.BrowseCategory
 import com.emiwiana.forge5e.model.domain.BrowserItem
+import com.emiwiana.forge5e.model.domain.EquipmentContent
 import com.emiwiana.forge5e.model.domain.EquipmentItem
 
 // ==========================================
@@ -60,7 +61,7 @@ fun Background.toDomainModel(): BrowserItem {
 
     // Formats starting equipment list into "2x Potion, 1x Backpack"
     val equipment = this.startingEquipment?.joinToString {
-        "${it.quantity}x ${it.equipment.name}"
+        "${it.quantity}x ${it.equipment?.name ?: it.item?.name ?: "Unknown"}"
     } ?: "None"
 
     val featureHeading = "**Background Feature: ${this.backgroundFeature.name}**\n\n"
@@ -175,15 +176,22 @@ fun Equipment.toDomainModel(): EquipmentItem {
     val formattedCost = this.cost?.let { "${it.quantity} ${it.unit}" } ?: "0 gp"
     val formattedDamage = this.damage?.let { "${it.damageDice} ${it.damageType.name}" }
 
+    val descStr = this.desc?.joinToString("\n\n") ?: ""
+    val categoryInfo = "Category: ${this.weaponCategory ?: this.categoryRange ?: "Gear"}"
+    val finalDescription = if (descStr.isNotEmpty()) "$descStr\n\n$categoryInfo" else categoryInfo
+
     return EquipmentItem(
         id = this.index,
         name = this.name,
         equipmentCategory = this.equipmentCategory.name,
         cost = formattedCost,
         weight = this.weight ?: 0.0,
-        description = "Category: ${this.weaponCategory ?: this.categoryRange ?: "Gear"}",
+        description = finalDescription,
         damage = formattedDamage,
         properties = this.properties?.map { it.name } ?: emptyList(),
-        isHomebrew = false
+        isHomebrew = false,
+        contents = this.contents?.mapNotNull { eq ->
+            (eq.equipment ?: eq.item)?.let { ref -> EquipmentContent(ref, eq.quantity) }
+        } ?: emptyList()
     )
 }
