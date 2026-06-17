@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -23,8 +22,6 @@ fun CharacterListScreen(
     onNavigateBack: () -> Unit
 ) {
     val characters by viewModel.allCharacters.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
-    var newCharacterName by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -34,16 +31,11 @@ fun CharacterListScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToBuilder) {
-                        Icon(Icons.Default.Build, contentDescription = "Character Builder")
-                    }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = onNavigateToBuilder) {
                 Icon(Icons.Default.Add, contentDescription = "Add Character")
             }
         }
@@ -62,40 +54,6 @@ fun CharacterListScreen(
                     onClick = { onNavigateToDetail(character.id) }
                 )
             }
-        }
-
-        if (showAddDialog) {
-            AlertDialog(
-                onDismissRequest = { showAddDialog = false },
-                title = { Text("Quick Character Creation") },
-                text = {
-                    TextField(
-                        value = newCharacterName,
-                        onValueChange = { newCharacterName = it },
-                        label = { Text("Character Name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (newCharacterName.isNotBlank()) {
-                                viewModel.addCharacter(newCharacterName)
-                                newCharacterName = ""
-                                showAddDialog = false
-                            }
-                        }
-                    ) {
-                        Text("Create")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
         }
     }
 }

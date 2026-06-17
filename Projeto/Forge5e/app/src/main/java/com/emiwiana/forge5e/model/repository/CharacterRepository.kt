@@ -10,6 +10,10 @@ class CharacterRepository(private val characterDao: CharacterDao) {
         characterDao.insertCharacter(character)
     }
 
+    suspend fun insertAndGetId(character: CharacterEntity): Long {
+        return characterDao.insertCharacter(character)
+    }
+
     suspend fun delete(character: CharacterEntity) {
         characterDao.deleteCharacter(character)
     }

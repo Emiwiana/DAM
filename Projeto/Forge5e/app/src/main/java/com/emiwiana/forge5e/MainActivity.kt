@@ -27,6 +27,7 @@ import com.emiwiana.forge5e.ui.screens.DiceRollerScreen
 import com.emiwiana.forge5e.ui.screens.MainMenuScreen
 import com.emiwiana.forge5e.ui.screens.SrdBrowserScreen
 import com.emiwiana.forge5e.ui.theme.Forge5eTheme
+import com.emiwiana.forge5e.viewModel.CharacterBuilderViewModel
 import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
 import com.emiwiana.forge5e.viewModel.CharacterViewModel
 import com.emiwiana.forge5e.viewModel.DiceRollerViewModel
@@ -76,7 +77,6 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate(Screen.CharacterDetail.createRoute(id))
                                 },
                                 onNavigateToBuilder = {
-                                    // Placeholder for builder, using a simple route for now
                                     navController.navigate("builder")
                                 },
                                 onNavigateBack = { navController.popBackStack() }
@@ -107,8 +107,21 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("builder") {
+                            val builderViewModel: CharacterBuilderViewModel = viewModel(
+                                factory = object : ViewModelProvider.Factory {
+                                    @Suppress("UNCHECKED_CAST")
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        return CharacterBuilderViewModel(
+                                            characterRepository,
+                                            srdRepository
+                                        ) as T
+                                    }
+                                }
+                            )
                             CharacterBuilderScreen(
-                                onNavigateBack = { navController.popBackStack() }
+                                viewModel = builderViewModel,
+                                onNavigateBack = { navController.popBackStack() },
+                                onFinish = { navController.popBackStack() }
                             )
                         }
 

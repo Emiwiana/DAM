@@ -5,13 +5,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.emiwiana.forge5e.model.db.CharacterEntity
 import java.util.Locale
 
 @Composable
 fun EncumbranceWidget(
+    character: CharacterEntity,
     totalWeight: Double,
     carryCapacity: Double
 ) {
+    if (!character.useEncumbrance) return
+
     Card(
         modifier = Modifier
             .fillMaxWidth()

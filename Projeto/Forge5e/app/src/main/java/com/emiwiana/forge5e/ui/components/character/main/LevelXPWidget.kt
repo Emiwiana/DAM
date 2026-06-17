@@ -20,13 +20,19 @@ fun LevelXPWidget(character: CharacterEntity, viewModel: CharacterDetailViewMode
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("Level ${character.level} ${character.characterClass}", style = MaterialTheme.typography.titleMedium)
-                    Text("${character.experience} XP", style = MaterialTheme.typography.bodyMedium)
+                    if (!character.useMilestones) {
+                        Text("${character.experience} XP", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { showXpDialog = true }) {
-                    Text("Edit XP")
+                
+                if (!character.useMilestones) {
+                    Button(onClick = { showXpDialog = true }) {
+                        Text("Edit XP")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+
                 Button(onClick = { showLevelUpConfirm = true }, enabled = character.level < 20) {
                     Text("Level Up")
                 }

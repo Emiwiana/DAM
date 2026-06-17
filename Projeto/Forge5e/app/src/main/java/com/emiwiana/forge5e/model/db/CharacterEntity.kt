@@ -10,8 +10,14 @@ data class CharacterEntity(
     val name: String,
     val characterClass: String = "",
     val classIndex: String = "",
+    val subclass: String = "",
+    val subclassIndex: String = "",
     val race: String = "",
     val raceIndex: String = "",
+    val subrace: String = "",
+    val subraceIndex: String = "",
+    val background: String = "",
+    val backgroundIndex: String = "",
     val level: Int = 1,
     
     // Ability Scores
@@ -27,6 +33,7 @@ data class CharacterEntity(
     val currentHp: Int = 10,
     val temporaryHp: Int = 0,
     val currentHitDice: Int = 1,
+    val hitDieType: Int = 8, // e.g. 8 for d8
     
     // Death Saves
     val deathSaveSuccesses: Int = 0,
@@ -64,13 +71,24 @@ data class CharacterEntity(
     val usedSlots7: Int = 0,
     val usedSlots8: Int = 0,
     val usedSlots9: Int = 0,
-    val preparesSpells: Boolean = true, // If false, "Known" and "Prepared" are merged
+    val preparesSpells: Boolean = true,
     val maxPreparedSpells: Int = 0,
     val maxKnownSpells: Int = 0,
 
     // Bonuses
     val initiativeBonus: Int = 0,
-    val speedBonus: Int = 0
+    val speedBonus: Int = 0,
+    val baseSpeed: Int = 30,
+
+    // Variant Rules / Config
+    val useMilestones: Boolean = false,
+    val useEncumbrance: Boolean = true,
+    val hpCalculationMode: String = "Average", // "Max", "RollAboveAverage", "Roll", "Average"
+    val useFeats: Boolean = false,
+    val hasStartingFeat: Boolean = false,
+    
+    // Feats
+    val featIndex: String = ""
 )
 
 @Entity(tableName = "character_equipment", primaryKeys = ["characterId", "equipmentIndex"])

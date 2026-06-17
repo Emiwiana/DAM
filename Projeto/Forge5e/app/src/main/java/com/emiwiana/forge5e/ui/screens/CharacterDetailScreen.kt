@@ -21,21 +21,10 @@ import com.emiwiana.forge5e.model.db.CharacterSpellEntity
 import com.emiwiana.forge5e.model.domain.EquipmentItem
 import com.emiwiana.forge5e.model.repository.toDomainModel
 import com.emiwiana.forge5e.ui.components.browser.FeatureCard
-import com.emiwiana.forge5e.ui.components.character.main.AbilityScoreItem
+import com.emiwiana.forge5e.ui.components.character.main.*
 import com.emiwiana.forge5e.ui.components.character.attacks.AttackItem
-import com.emiwiana.forge5e.ui.components.character.main.DeathSavesWidget
 import com.emiwiana.forge5e.ui.components.character.equipment.EncumbranceWidget
 import com.emiwiana.forge5e.ui.components.character.equipment.MoneyTrackerWidget
-import com.emiwiana.forge5e.ui.components.character.main.ExhaustionWidget
-import com.emiwiana.forge5e.ui.components.character.main.HealthWidget
-import com.emiwiana.forge5e.ui.components.character.main.HitDiceWidget
-import com.emiwiana.forge5e.ui.components.character.main.LevelXPWidget
-import com.emiwiana.forge5e.ui.components.character.main.SavingThrowsWidget
-import com.emiwiana.forge5e.ui.components.character.main.SkillsWidget
-import com.emiwiana.forge5e.ui.components.character.main.ProficiencyTrackerWidget
-import com.emiwiana.forge5e.ui.components.character.main.TrackersWidget
-import com.emiwiana.forge5e.ui.components.character.main.CombatStatsWidget
-import com.emiwiana.forge5e.ui.components.character.main.PassivePerceptionWidget
 import com.emiwiana.forge5e.ui.components.character.spells.SpellItem
 import com.emiwiana.forge5e.ui.components.character.spells.SpellStatsWidget
 import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
@@ -75,12 +64,14 @@ fun CharacterDetailScreen(
             }
 
             character?.let { char ->
-                when (selectedTabIndex) {
-                    0 -> MainTab(char, viewModel)
-                    1 -> AttacksTab(viewModel)
-                    2 -> SpellsTab(char, viewModel)
-                    3 -> EquipmentTab(char, viewModel)
-                    4 -> FeaturesTab(viewModel)
+                Box(modifier = Modifier.weight(1f)) {
+                    when (selectedTabIndex) {
+                        0 -> MainTab(char, viewModel)
+                        1 -> AttacksTab(viewModel)
+                        2 -> SpellsTab(char, viewModel)
+                        3 -> EquipmentTab(char, viewModel)
+                        4 -> FeaturesTab(viewModel)
+                    }
                 }
             } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -91,7 +82,6 @@ fun CharacterDetailScreen(
 
 @Composable
 fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
-    val proficiencyBonus = viewModel.getProficiencyBonus(character.level)
     var showShortRestDialog by remember { mutableStateOf(false) }
     var showLongRestConfirm by remember { mutableStateOf(false) }
 
@@ -100,28 +90,17 @@ fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            LevelXPWidget(character, viewModel)
-        }
+        item { LevelXPWidget(character, viewModel) }
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showShortRestDialog = true }, modifier = Modifier.weight(1f)) {
-                    Text("Short Rest")
-                }
-                Button(onClick = { showLongRestConfirm = true }, modifier = Modifier.weight(1f)) {
-                    Text("Long Rest")
-                }
+                Button(onClick = { showShortRestDialog = true }, modifier = Modifier.weight(1f)) { Text("Short Rest") }
+                Button(onClick = { showLongRestConfirm = true }, modifier = Modifier.weight(1f)) { Text("Long Rest") }
             }
         }
 
-        item {
-            HealthWidget(character, viewModel)
-        }
-
-        item {
-            CombatStatsWidget(character, viewModel)
-        }
+        item { HealthWidget(character, viewModel) }
+        item { CombatStatsWidget(character, viewModel) }
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -131,98 +110,61 @@ fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
             }
         }
 
-        item {
-            TrackersWidget(viewModel)
-        }
+        item { TrackersWidget(viewModel) }
 
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Proficiency", style = MaterialTheme.typography.labelSmall)
-                        Text("+$proficiencyBonus", style = MaterialTheme.typography.titleLarge)
-                    }
-                }
+                ProficiencyBonusCard(viewModel.getProficiencyBonus(character.level))
                 PassivePerceptionWidget(viewModel)
             }
         }
 
         item {
             Text("Ability Scores", style = MaterialTheme.typography.titleLarge)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    AbilityScoreItem("STR", character.strength)
-                    AbilityScoreItem("DEX", character.dexterity)
-                    AbilityScoreItem("CON", character.constitution)
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    AbilityScoreItem("INT", character.intelligence)
-                    AbilityScoreItem("WIS", character.wisdom)
-                    AbilityScoreItem("CHA", character.charisma)
-                }
-            }
+            AbilityScoresGrid(character)
         }
 
-        item {
-            SavingThrowsWidget(character, viewModel, proficiencyBonus)
-        }
-
-        item {
-            SkillsWidget(character, viewModel, proficiencyBonus)
-        }
-
-        item {
-            ProficiencyTrackerWidget(character, viewModel)
-        }
+        item { SavingThrowsWidget(character, viewModel, viewModel.getProficiencyBonus(character.level)) }
+        item { SkillsWidget(character, viewModel, viewModel.getProficiencyBonus(character.level)) }
+        item { ProficiencyTrackerWidget(character, viewModel) }
     }
 
     if (showShortRestDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                viewModel.shortRest()
-                showShortRestDialog = false
-            },
-            title = { Text("Short Rest") },
-            text = {
-                Column {
-                    Text("Expend hit dice to heal. You have ${character.currentHitDice} hit dice remaining.")
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.spendHitDie() },
-                        enabled = character.currentHitDice > 0 && character.currentHp < character.maxHp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Spend Hit Die (1d4 + CON)")
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.shortRest()
-                    showShortRestDialog = false
-                }) { Text("Finish Rest") }
-            }
-        )
+        ShortRestDialog(character, viewModel, onDismiss = { showShortRestDialog = false })
     }
 
     if (showLongRestConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLongRestConfirm = false },
-            title = { Text("Confirm Long Rest") },
-            text = { Text("A long rest will restore all HP, some hit dice, spell slots, and resources. Reset death saves?") },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.longRest()
-                    showLongRestConfirm = false
-                }) { Text("Confirm") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLongRestConfirm = false }) { Text("Cancel") }
-            }
-        )
+        LongRestConfirmDialog(viewModel, onDismiss = { showLongRestConfirm = false })
+    }
+}
+
+@Composable
+private fun ProficiencyBonusCard(bonus: Int) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Proficiency", style = MaterialTheme.typography.labelSmall)
+            Text("+$bonus", style = MaterialTheme.typography.titleLarge)
+        }
+    }
+}
+
+@Composable
+private fun AbilityScoresGrid(character: CharacterEntity) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            AbilityScoreItem("STR", character.strength)
+            AbilityScoreItem("DEX", character.dexterity)
+            AbilityScoreItem("CON", character.constitution)
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            AbilityScoreItem("INT", character.intelligence)
+            AbilityScoreItem("WIS", character.wisdom)
+            AbilityScoreItem("CHA", character.charisma)
+        }
     }
 }
 
@@ -238,9 +180,7 @@ fun AttacksTab(viewModel: CharacterDetailViewModel) {
         if (attacks.isEmpty()) {
             item { Text("No attacks available. Equip weapons or add spells.") }
         }
-        items(attacks) { attack ->
-            AttackItem(attack, viewModel)
-        }
+        items(attacks) { attack -> AttackItem(attack, viewModel) }
     }
 }
 
@@ -257,90 +197,36 @@ fun SpellsTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Spellcasting Stats", style = MaterialTheme.typography.titleMedium)
-                IconButton(onClick = { showSettings = true }) {
-                    Icon(Icons.Default.Settings, contentDescription = "Spellcasting Settings")
-                }
+                IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
             }
         }
 
-        item {
-            SpellStatsWidget(character, viewModel)
-        }
+        item { SpellStatsWidget(character, viewModel) }
 
         if (character.preparesSpells) {
-            val prepared = spells.filter { it.isPrepared }
-            val known = spells.filter { !it.isPrepared }
+            val (prepared, known) = spells.partition { it.isPrepared }
+            
+            item { SpellSectionHeader("Prepared Spells", prepared.size, character.maxPreparedSpells) }
+            items(prepared) { spell -> SpellItem(spell, viewModel, onRemove = { viewModel.removeSpell(spell) }) }
 
-            item {
-                Text("Prepared Spells (${prepared.size} / ${character.maxPreparedSpells})", style = MaterialTheme.typography.titleMedium)
-            }
-            items(prepared) { spell ->
-                SpellItem(spell = spell, viewModel = viewModel, onRemove = { viewModel.removeSpell(spell) })
-            }
-
-            item {
-                Text("Known Spells (${spells.size} / ${character.maxKnownSpells})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
-            }
-            items(known) { spell ->
-                SpellItem(spell = spell, viewModel = viewModel, onRemove = { viewModel.removeSpell(spell) })
-            }
+            item { SpellSectionHeader("Known Spells", spells.size, character.maxKnownSpells, Modifier.padding(top = 16.dp)) }
+            items(known) { spell -> SpellItem(spell, viewModel, onRemove = { viewModel.removeSpell(spell) }) }
         } else {
-            item {
-                Text("Spells (${spells.size} / ${character.maxKnownSpells})", style = MaterialTheme.typography.titleMedium)
-            }
+            item { SpellSectionHeader("Spells", spells.size, character.maxKnownSpells) }
             items(spells) { spell ->
-                SpellItem(
-                    spell = spell,
-                    viewModel = viewModel,
-                    showPreparedCheckbox = false,
-                    onRemove = { viewModel.removeSpell(spell) }
-                )
+                SpellItem(spell, viewModel, showPreparedCheckbox = false, onRemove = { viewModel.removeSpell(spell) })
             }
         }
     }
 
     if (showSettings) {
-        var preparesSpells by remember { mutableStateOf(character.preparesSpells) }
-        var maxPrepared by remember { mutableStateOf(character.maxPreparedSpells.toString()) }
-        var maxKnown by remember { mutableStateOf(character.maxKnownSpells.toString()) }
-
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            title = { Text("Spellcasting Configuration") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = preparesSpells, onCheckedChange = { preparesSpells = it })
-                        Text("Prepares Spells (e.g. Wizard, Cleric)")
-                    }
-                    TextField(
-                        value = maxPrepared,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) maxPrepared = it },
-                        label = { Text("Max Prepared Spells") },
-                        enabled = preparesSpells
-                    )
-                    TextField(
-                        value = maxKnown,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) maxKnown = it },
-                        label = { Text("Max Known Spells") }
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.updateSpellcastingLimits(
-                        preparesSpells,
-                        maxPrepared.toIntOrNull() ?: 0,
-                        maxKnown.toIntOrNull() ?: 0
-                    )
-                    showSettings = false
-                }) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettings = false }) { Text("Cancel") }
-            }
-        )
+        SpellcastingSettingsDialog(character, viewModel, onDismiss = { showSettings = false })
     }
+}
+
+@Composable
+private fun SpellSectionHeader(title: String, current: Int, max: Int, modifier: Modifier = Modifier) {
+    Text("$title ($current / $max)", style = MaterialTheme.typography.titleMedium, modifier = modifier)
 }
 
 @Composable
@@ -353,8 +239,7 @@ fun EquipmentTab(character: CharacterEntity, viewModel: CharacterDetailViewModel
     val carryCapacity = character.strength * 15.0
 
     Column(modifier = Modifier.fillMaxSize()) {
-        EncumbranceWidget(totalWeight = totalWeight, carryCapacity = carryCapacity)
-
+        EncumbranceWidget(character = character, totalWeight = totalWeight, carryCapacity = carryCapacity)
         MoneyTrackerWidget(character, viewModel)
 
         LazyColumn(
@@ -362,41 +247,18 @@ fun EquipmentTab(character: CharacterEntity, viewModel: CharacterDetailViewModel
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(inventory) { item ->
-                EquipmentItemRow(item, viewModel)
-            }
+            items(inventory) { item -> EquipmentItemRow(item, viewModel) }
         }
 
-        Button(
-            onClick = { showAddEqDialog = true },
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
+        Button(onClick = { showAddEqDialog = true }, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Icon(Icons.Default.Add, null)
+            Spacer(Modifier.width(8.dp))
             Text("Add from SRD")
         }
     }
 
     if (showAddEqDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddEqDialog = false },
-            title = { Text("Add Equipment from SRD") },
-            text = {
-                Box(modifier = Modifier.height(300.dp)) {
-                    LazyColumn {
-                        items(availableEq) { eq ->
-                            TextButton(onClick = {
-                                viewModel.addEquipmentFromSrd(eq.index)
-                                showAddEqDialog = false
-                            }, modifier = Modifier.fillMaxWidth()) {
-                                Text(eq.name)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showAddEqDialog = false }) { Text("Close") } }
-        )
+        SrdEquipmentDialog(availableEq, onAdd = { viewModel.addEquipmentFromSrd(it) }, onDismiss = { showAddEqDialog = false })
     }
 }
 
@@ -420,35 +282,16 @@ fun EquipmentItemRow(item: CharacterEquipmentEntity, viewModel: CharacterDetailV
                         showInfo = true
                     }
                 }
-            }) {
-                Icon(Icons.Default.Info, contentDescription = "Info")
-            }
+            }) { Icon(Icons.Default.Info, "Info") }
 
             Text("Equipped", style = MaterialTheme.typography.labelSmall)
             Checkbox(checked = item.isEquipped, onCheckedChange = { viewModel.toggleEquip(item) })
-            IconButton(onClick = { viewModel.removeEquipment(item) }) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete")
-            }
+            IconButton(onClick = { viewModel.removeEquipment(item) }) { Icon(Icons.Default.Delete, "Delete") }
         }
     }
 
     if (showInfo && itemDetail != null) {
-        Dialog(onDismissRequest = { showInfo = false }) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    FeatureCard(item = itemDetail!!)
-                    Button(
-                        onClick = { showInfo = false },
-                        modifier = Modifier.align(Alignment.End).padding(top = 8.dp)
-                    ) {
-                        Text("Close")
-                    }
-                }
-            }
-        }
+        InfoDialog(itemDetail!!, onDismiss = { showInfo = false })
     }
 }
 
@@ -465,24 +308,116 @@ fun FeaturesTab(viewModel: CharacterDetailViewModel) {
             item { Text("No features found for this character's race and class.") }
         }
         items(features) { feature ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(feature.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        Surface(
-                            shape = MaterialTheme.shapes.extraSmall,
-                            color = if (feature.source == "Race") MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                feature.source,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(feature.description, style = MaterialTheme.typography.bodyMedium)
+            FeatureCard(feature)
+        }
+    }
+}
+
+@Composable
+private fun FeatureCard(feature: com.emiwiana.forge5e.viewModel.FeatureInfo) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(feature.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Surface(
+                    shape = MaterialTheme.shapes.extraSmall,
+                    color = if (feature.source == "Race") MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(feature.source, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                 }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(feature.description, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+// --- Specific Dialog Components ---
+
+@Composable
+fun ShortRestDialog(character: CharacterEntity, viewModel: CharacterDetailViewModel, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Short Rest") },
+        text = {
+            Column {
+                Text("Expend hit dice to heal. Remaining: ${character.currentHitDice}")
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { viewModel.spendHitDie() },
+                    enabled = character.currentHitDice > 0 && character.currentHp < character.maxHp,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Spend Hit Die") }
+            }
+        },
+        confirmButton = { Button(onClick = { viewModel.shortRest(); onDismiss() }) { Text("Finish Rest") } }
+    )
+}
+
+@Composable
+fun LongRestConfirmDialog(viewModel: CharacterDetailViewModel, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Long Rest") },
+        text = { Text("A long rest restores all HP, spell slots, and resources.") },
+        confirmButton = { Button(onClick = { viewModel.longRest(); onDismiss() }) { Text("Confirm") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+fun SpellcastingSettingsDialog(character: CharacterEntity, viewModel: CharacterDetailViewModel, onDismiss: () -> Unit) {
+    var preparesSpells by remember { mutableStateOf(character.preparesSpells) }
+    var maxPrepared by remember { mutableStateOf(character.maxPreparedSpells.toString()) }
+    var maxKnown by remember { mutableStateOf(character.maxKnownSpells.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Spellcasting Configuration") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = preparesSpells, onCheckedChange = { preparesSpells = it })
+                    Text("Prepares Spells")
+                }
+                TextField(value = maxPrepared, onValueChange = { if (it.all { c -> c.isDigit() }) maxPrepared = it }, label = { Text("Max Prepared") }, enabled = preparesSpells)
+                TextField(value = maxKnown, onValueChange = { if (it.all { c -> c.isDigit() }) maxKnown = it }, label = { Text("Max Known") })
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                viewModel.updateSpellcastingLimits(preparesSpells, maxPrepared.toIntOrNull() ?: 0, maxKnown.toIntOrNull() ?: 0)
+                onDismiss()
+            }) { Text("Save") }
+        }
+    )
+}
+
+@Composable
+fun SrdEquipmentDialog(availableEq: List<com.emiwiana.forge5e.model.api.dto.APIReference>, onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Equipment") },
+        text = {
+            Box(modifier = Modifier.height(300.dp)) {
+                LazyColumn {
+                    items(availableEq) { eq ->
+                        TextButton(onClick = { onAdd(eq.index); onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text(eq.name) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
+}
+
+@Composable
+fun InfoDialog(itemDetail: EquipmentItem, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                FeatureCard(item = itemDetail)
+                Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End).padding(top = 8.dp)) { Text("Close") }
             }
         }
     }

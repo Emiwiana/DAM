@@ -29,7 +29,7 @@ data class AttackInfo(
 data class FeatureInfo(
     val name: String,
     val description: String,
-    val source: String // "Race" or "Class"
+    val source: String // "Race", "Class", "Background"
 )
 
 class CharacterDetailViewModel(
@@ -37,6 +37,8 @@ class CharacterDetailViewModel(
     private val characterRepository: CharacterRepository,
     private val srdRepository: SrdRepository
 ) : ViewModel() {
+
+    // --- State Flows ---
 
     val character: StateFlow<CharacterEntity?> = characterRepository.getCharacterById(characterId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -62,14 +64,15 @@ class CharacterDetailViewModel(
     private val _armorClass = MutableStateFlow(10)
     val armorClass: StateFlow<Int> = _armorClass.asStateFlow()
 
-    // Derived stats
+    // --- Derived Stats ---
+
     val initiative: StateFlow<Int> = character.map { char ->
         char?.let { getModifier(it.dexterity) + it.initiativeBonus } ?: 0
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val speed: StateFlow<Int> = character.map { char ->
-        char?.let { 10 + it.dexterity + it.speedBonus } ?: 0
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+        char?.let { 30 + it.speedBonus } ?: 30 // Simplified base speed
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 30)
 
     val passivePerception: StateFlow<Int> = character.map { char ->
         char?.let {
@@ -81,17 +84,21 @@ class CharacterDetailViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10)
 
     init {
-        combine(character, inventory, spells) { char, inv, spl ->
-            char?.let { updateAttacks(it, inv, spl) }
+        character.filterNotNull().onEach { char ->
+            updateFeatures(char)
         }.launchIn(viewModelScope)
 
-        // Calculate AC whenever character (dex) or inventory (armor) changes
-        combine(character, inventory) { char, inv ->
-            char?.let { calculateAC(it, inv) }
+        combine(character, inventory, spells) { char, inv, spl ->
+            if (char != null) {
+                updateAttacks(char, inv, spl)
+                calculateAC(char, inv)
+            }
         }.launchIn(viewModelScope)
 
         fetchAvailableEquipment()
     }
+
+    // --- Private Update Logic ---
 
     private fun fetchAvailableEquipment() {
         viewModelScope.launch {
@@ -106,30 +113,25 @@ class CharacterDetailViewModel(
         var baseAC = 10 + dexMod
 
         val equippedArmor = inv.filter { it.isEquipped }
-        
         for (item in equippedArmor) {
-            val detail = srdRepository.fetchEquipment(item.equipmentIndex).getOrNull()
-            if (detail?.equipmentCategory?.index == "armor" && detail.armorClass != null) {
-                val ac = detail.armorClass
-                var currentArmorAC = ac.base
-                if (ac.dexBonus) {
-                    val bonus = if (ac.maxBonus != null) minOf(dexMod, ac.maxBonus) else dexMod
-                    currentArmorAC += bonus
+            srdRepository.fetchEquipment(item.equipmentIndex).onSuccess { detail ->
+                detail.armorClass?.let { ac ->
+                    val bonus = if (ac.dexBonus) {
+                        if (ac.maxBonus != null) minOf(dexMod, ac.maxBonus) else dexMod
+                    } else 0
+                    baseAC = ac.base + bonus
                 }
-                baseAC = currentArmorAC
-                break // Only one armor affects AC
             }
         }
 
-        val hasShield = equippedArmor.any { it.name.lowercase().contains("shield") }
-        if (hasShield) baseAC += 2
-
+        if (equippedArmor.any { it.name.lowercase().contains("shield") }) baseAC += 2
         _armorClass.value = baseAC
     }
 
     private suspend fun updateFeatures(char: CharacterEntity) {
         val newFeatures = mutableListOf<FeatureInfo>()
 
+        // Fetch Race Traits
         if (char.raceIndex.isNotBlank()) {
             srdRepository.fetchRaceTraits(char.raceIndex).onSuccess { traits ->
                 traits.results.forEach { traitRef ->
@@ -140,6 +142,18 @@ class CharacterDetailViewModel(
             }
         }
 
+        // Fetch Subrace Traits
+        if (char.subraceIndex.isNotBlank()) {
+            srdRepository.fetchSubraceTraits(char.subraceIndex).onSuccess { traits ->
+                traits.results.forEach { traitRef ->
+                    srdRepository.fetchRacialFeature(traitRef.index).onSuccess { detail ->
+                        newFeatures.add(FeatureInfo(detail.name, detail.desc.joinToString("\n"), "Race"))
+                    }
+                }
+            }
+        }
+
+        // Fetch Class Features
         if (char.classIndex.isNotBlank()) {
             srdRepository.fetchClassFeatures(char.classIndex).onSuccess { features ->
                 features.results.forEach { featureRef ->
@@ -149,112 +163,129 @@ class CharacterDetailViewModel(
                 }
             }
         }
+
+        // Fetch Subclass Features
+        if (char.subclassIndex.isNotBlank()) {
+            srdRepository.fetchSubclassFeatures(char.subclassIndex).onSuccess { features ->
+                features.results.forEach { featureRef ->
+                    srdRepository.fetchClassFeature(featureRef.index).onSuccess { detail ->
+                        newFeatures.add(FeatureInfo(detail.name, detail.desc.joinToString("\n"), "Class"))
+                    }
+                }
+            }
+        }
+
+        // Fetch Background Feature
+        if (char.backgroundIndex.isNotBlank()) {
+            srdRepository.fetchBackground(char.backgroundIndex).onSuccess { background ->
+                newFeatures.add(FeatureInfo(
+                    background.backgroundFeature.name,
+                    background.backgroundFeature.desc.joinToString("\n"),
+                    "Background"
+                ))
+            }
+        }
+
         _features.value = newFeatures
     }
 
     private suspend fun updateAttacks(char: CharacterEntity, inv: List<CharacterEquipmentEntity>, spl: List<CharacterSpellEntity>) {
         val newAttacks = mutableListOf<AttackInfo>()
-        val proficiencyBonus = getProficiencyBonus(char.level)
-        val strMod = getModifier(char.strength)
-        val dexMod = getModifier(char.dexterity)
-        val defaultSpellMod = getModifierForAbility(char, char.spellcastingAbility)
+        val profBonus = getProficiencyBonus(char.level)
 
+        // Equipment Attacks
         inv.filter { it.isEquipped }.forEach { item ->
-            srdRepository.fetchEquipment(item.equipmentIndex).onSuccess { equipment ->
-                equipment.damage?.let { damage ->
-                    val properties = equipment.properties?.map { it.name } ?: emptyList()
-                    val isFinesse = properties.contains("Finesse")
-                    val isThrown = properties.contains("Thrown")
-                    val isRanged = equipment.weaponRange == "Ranged"
-                    val isVersatile = properties.contains("Versatile")
-
-                    val abilityMod = when {
-                        item.selectedAbility == "STR" -> strMod
-                        item.selectedAbility == "DEX" -> dexMod
-                        isFinesse -> maxOf(strMod, dexMod)
-                        isRanged && !isThrown -> dexMod
-                        else -> strMod
-                    }
-
-                    val isProficient = isWeaponProficient(char, equipment.name, equipment.weaponCategory ?: "")
-                    val toHit = abilityMod + (if (isProficient) proficiencyBonus else 0)
-                    val damageBonus = abilityMod
-
+            srdRepository.fetchEquipment(item.equipmentIndex).onSuccess { eq ->
+                eq.damage?.let { damage ->
+                    val properties = eq.properties?.map { it.name } ?: emptyList()
+                    val abilityMod = getWeaponAbilityModifier(char, item, eq, properties)
+                    
+                    val isProficient = isWeaponProficient(char, eq.name, eq.weaponCategory ?: "")
+                    val toHit = abilityMod + (if (isProficient) profBonus else 0)
+                    
                     var finalDamageDice = damage.damageDice
-                    if (isVersatile && item.useTwoHanded) {
+                    if (properties.contains("Versatile") && item.useTwoHanded) {
                         finalDamageDice = increaseDamageDie(finalDamageDice)
                     }
 
-                    val rangeStr = if (equipment.range != null) {
-                        if (equipment.range.long != null) {
-                            "${equipment.range.normal}/${equipment.range.long}"
-                        } else {
-                            "${equipment.range.normal}"
-                        }
-                    } else {
-                        equipment.weaponRange ?: "Melee"
-                    }
-
-                    newAttacks.add(
-                        AttackInfo(
-                            name = equipment.name,
-                            damage = finalDamageDice,
-                            damageType = damage.damageType.name,
-                            range = rangeStr,
-                            source = "Equipment",
-                            toHit = toHit,
-                            damageBonus = damageBonus,
-                            item = item,
-                            properties = properties
-                        )
-                    )
+                    newAttacks.add(AttackInfo(
+                        name = eq.name,
+                        damage = finalDamageDice,
+                        damageType = damage.damageType.name,
+                        range = formatRange(eq),
+                        source = "Equipment",
+                        toHit = toHit,
+                        damageBonus = abilityMod,
+                        item = item,
+                        properties = properties
+                    ))
                 }
             }
         }
-        
-        val attackSpells = if (char.preparesSpells) spl.filter { it.isPrepared } else spl
 
+        // Spell Attacks
+        val spellAbilityMod = getModifierForAbility(char, char.spellcastingAbility)
+        val attackSpells = if (char.preparesSpells) spl.filter { it.isPrepared } else spl
+        
         attackSpells.forEach { spellRef ->
             srdRepository.fetchSpell(spellRef.spellIndex).onSuccess { spell ->
-                val spellAbilityMod = if (spellRef.customAbility != null) {
-                    getModifierForAbility(char, spellRef.customAbility)
-                } else {
-                    defaultSpellMod
-                }
-
-                val toHit = spellAbilityMod + proficiencyBonus
-
-                val isSpellAttack = spell.desc.any {
-                    it.contains("melee spell attack", ignoreCase = true) ||
-                    it.contains("ranged spell attack", ignoreCase = true)
-                }
-
-                if (isSpellAttack) {
-                     newAttacks.add(
-                        AttackInfo(
-                            name = spell.name,
-                            damage = null,
-                            damageType = spell.school.name,
-                            range = spell.range,
-                            source = "Spell",
-                            toHit = toHit,
-                            spell = spellRef
-                        )
-                    )
+                if (spell.desc.any { it.contains("spell attack", ignoreCase = true) }) {
+                    val mod = spellRef.customAbility?.let { getModifierForAbility(char, it) } ?: spellAbilityMod
+                    newAttacks.add(AttackInfo(
+                        name = spell.name,
+                        damage = null,
+                        damageType = spell.school.name,
+                        range = spell.range,
+                        source = "Spell",
+                        toHit = mod + profBonus,
+                        spell = spellRef
+                    ))
                 }
             }
         }
         _attacks.value = newAttacks
     }
 
-    private fun increaseDamageDie(dice: String): String {
+    // --- Helper Methods ---
+
+    fun getModifier(score: Int) = (score - 10) / 2
+    fun getProficiencyBonus(level: Int) = 2 + (level - 1) / 4
+
+    fun getModifierForAbility(char: CharacterEntity, ability: String): Int = when (ability.uppercase()) {
+        "STR" -> getModifier(char.strength)
+        "DEX" -> getModifier(char.dexterity)
+        "CON" -> getModifier(char.constitution)
+        "INT" -> getModifier(char.intelligence)
+        "WIS" -> getModifier(char.wisdom)
+        "CHA" -> getModifier(char.charisma)
+        else -> 0
+    }
+
+    private fun getWeaponAbilityModifier(char: CharacterEntity, item: CharacterEquipmentEntity, eq: com.emiwiana.forge5e.model.api.dto.items.Equipment, props: List<String>): Int {
+        if (item.selectedAbility != null) return getModifierForAbility(char, item.selectedAbility)
+        
+        val strMod = getModifier(char.strength)
+        val dexMod = getModifier(char.dexterity)
+        
         return when {
-            dice.contains("1d4") -> dice.replace("1d4", "1d6")
-            dice.contains("1d6") -> dice.replace("1d6", "1d8")
-            dice.contains("1d8") -> dice.replace("1d8", "1d10")
-            dice.contains("1d10") -> dice.replace("1d10", "1d12")
-            else -> dice
+            props.contains("Finesse") -> maxOf(strMod, dexMod)
+            eq.weaponRange == "Ranged" && !props.contains("Thrown") -> dexMod
+            else -> strMod
         }
+    }
+
+    private fun formatRange(eq: com.emiwiana.forge5e.model.api.dto.items.Equipment): String {
+        return eq.range?.let {
+            if (it.long != null) "${it.normal}/${it.long}" else "${it.normal}"
+        } ?: eq.weaponRange ?: "Melee"
+    }
+
+    private fun increaseDamageDie(dice: String): String = when {
+        dice.contains("1d4") -> dice.replace("1d4", "1d6")
+        dice.contains("1d6") -> dice.replace("1d6", "1d8")
+        dice.contains("1d8") -> dice.replace("1d8", "1d10")
+        dice.contains("1d10") -> dice.replace("1d10", "1d12")
+        else -> dice
     }
 
     private fun isWeaponProficient(char: CharacterEntity, weaponName: String, category: String): Boolean {
@@ -265,326 +296,152 @@ class CharacterDetailViewModel(
                (category.lowercase().contains("martial") && profs.contains("martial weapons"))
     }
 
-    fun getModifierForAbility(char: CharacterEntity, ability: String): Int {
-        return when(ability.uppercase()) {
-            "STR" -> getModifier(char.strength)
-            "DEX" -> getModifier(char.dexterity)
-            "CON" -> getModifier(char.constitution)
-            "INT" -> getModifier(char.intelligence)
-            "WIS" -> getModifier(char.wisdom)
-            "CHA" -> getModifier(char.charisma)
-            else -> 0
-        }
+    fun isSkillProficient(skillName: String): Boolean {
+        return character.value?.skillProficiencies?.lowercase()?.split(",")?.contains(skillName.lowercase()) ?: false
     }
 
-    fun levelUp() {
+    fun isSavingThrowProficient(ability: String): Boolean {
+        return character.value?.savingThrowProficiencies?.uppercase()?.split(",")?.contains(ability.uppercase()) ?: false
+    }
+
+    // --- Public Actions ---
+
+    private fun updateCharacter(action: (CharacterEntity) -> CharacterEntity) {
         viewModelScope.launch {
             character.value?.let { char ->
-                if (char.level < 20) {
-                    characterRepository.insert(char.copy(level = char.level + 1, currentHitDice = char.currentHitDice + 1))
-                }
+                characterRepository.insert(action(char))
             }
         }
     }
 
-    fun updateExperience(xp: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(experience = xp))
-            }
+    fun levelUp() = updateCharacter { it.copy(level = (it.level + 1).coerceAtMost(20), currentHitDice = it.currentHitDice + 1) }
+    fun updateExperience(xp: Int) = updateCharacter { it.copy(experience = xp) }
+    fun updateDeathSaves(successes: Int, failures: Int) = updateCharacter { 
+        it.copy(deathSaveSuccesses = successes.coerceIn(0, 3), deathSaveFailures = failures.coerceIn(0, 3)) 
+    }
+    fun updateExhaustion(level: Int) = updateCharacter { it.copy(exhaustionLevel = level.coerceIn(0, 6)) }
+
+    fun takeDamage(amount: Int) = updateCharacter { char ->
+        var damageRemaining = amount
+        var tempHp = char.temporaryHp
+        if (tempHp > 0) {
+            val reduction = minOf(tempHp, damageRemaining)
+            tempHp -= reduction
+            damageRemaining -= reduction
         }
+        char.copy(currentHp = (char.currentHp - damageRemaining).coerceAtLeast(0), temporaryHp = tempHp)
     }
 
-    fun updateDeathSaves(successes: Int, failures: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(
-                    deathSaveSuccesses = successes.coerceIn(0, 3),
-                    deathSaveFailures = failures.coerceIn(0, 3)
-                ))
-            }
-        }
-    }
-
-    fun updateExhaustion(level: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(exhaustionLevel = level.coerceIn(0, 6)))
-            }
-        }
-    }
-
-    fun takeDamage(amount: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                var damageRemaining = amount
-                var newTempHp = char.temporaryHp
-                var newCurrentHp = char.currentHp
-
-                if (newTempHp > 0) {
-                    val tempReduction = minOf(newTempHp, damageRemaining)
-                    newTempHp -= tempReduction
-                    damageRemaining -= tempReduction
-                }
-
-                if (damageRemaining > 0) {
-                    newCurrentHp = (newCurrentHp - damageRemaining).coerceAtLeast(0)
-                }
-
-                characterRepository.insert(char.copy(currentHp = newCurrentHp, temporaryHp = newTempHp))
-            }
-        }
-    }
-
-    fun heal(amount: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(currentHp = (char.currentHp + amount).coerceAtMost(char.maxHp)))
-            }
-        }
-    }
-
-    fun addTempHp(amount: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                if (amount > char.temporaryHp) {
-                    characterRepository.insert(char.copy(temporaryHp = amount))
-                }
-            }
-        }
-    }
-
-    fun updateHitDice(amount: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(currentHitDice = amount.coerceIn(0, char.level)))
-            }
-        }
-    }
+    fun heal(amount: Int) = updateCharacter { it.copy(currentHp = (it.currentHp + amount).coerceAtMost(it.maxHp)) }
+    fun addTempHp(amount: Int) = updateCharacter { if (amount > it.temporaryHp) it.copy(temporaryHp = amount) else it }
+    fun updateHitDice(amount: Int) = updateCharacter { it.copy(currentHitDice = amount.coerceIn(0, it.level)) }
 
     fun spendHitDie() {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                if (char.currentHitDice > 0) {
-                    val roll = Random.nextInt(1, 5)
-                    val conMod = getModifier(char.constitution)
-                    val healAmount = (roll + conMod).coerceAtLeast(1)
-
-                    characterRepository.insert(char.copy(
-                        currentHitDice = char.currentHitDice - 1,
-                        currentHp = (char.currentHp + healAmount).coerceAtMost(char.maxHp)
-                    ))
-                }
+        character.value?.let { char ->
+            if (char.currentHitDice > 0) {
+                val healAmount = (Random.nextInt(1, 9) + getModifier(char.constitution)).coerceAtLeast(1)
+                updateCharacter { it.copy(
+                    currentHitDice = it.currentHitDice - 1,
+                    currentHp = (it.currentHp + healAmount).coerceAtMost(it.maxHp)
+                )}
             }
         }
     }
 
     fun shortRest() {
         viewModelScope.launch {
-            character.value?.let { char ->
-                // Reset trackers that reset on Short Rest
-                trackers.value.forEach { tracker ->
-                    if (tracker.resetType == "Short Rest") {
-                        characterRepository.updateTracker(tracker.copy(current = tracker.max))
-                    }
-                }
-
-                // Reset spells that reset on Short Rest
-                spells.value.forEach { spell ->
-                    if (spell.resetType == "Short Rest") {
-                        characterRepository.updateSpell(spell.copy(currentUses = spell.maxUses))
-                    }
-                }
+            trackers.value.filter { it.resetType == "Short Rest" }.forEach { 
+                characterRepository.updateTracker(it.copy(current = it.max))
+            }
+            spells.value.filter { it.resetType == "Short Rest" }.forEach {
+                characterRepository.updateSpell(it.copy(currentUses = it.maxUses))
             }
         }
     }
 
     fun longRest() {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                val restoredHitDice = (char.level / 2).coerceAtLeast(1)
-                val newHitDice = (char.currentHitDice + restoredHitDice).coerceAtMost(char.level)
-
-                val updatedChar = char.copy(
-                    currentHp = char.maxHp,
-                    currentHitDice = newHitDice,
-                    usedSlots1 = 0, usedSlots2 = 0, usedSlots3 = 0,
-                    usedSlots4 = 0, usedSlots5 = 0, usedSlots6 = 0,
-                    usedSlots7 = 0, usedSlots8 = 0, usedSlots9 = 0,
-                    deathSaveSuccesses = 0,
-                    deathSaveFailures = 0
-                )
-
-                characterRepository.insert(updatedChar)
-
-                // Reset all trackers (Short Rest ones also reset on Long Rest)
-                trackers.value.forEach { tracker ->
-                    characterRepository.updateTracker(tracker.copy(current = tracker.max))
-                }
-
-                // Reset all limited use spells
-                spells.value.forEach { spell ->
-                    if (spell.maxUses > 0) {
-                        characterRepository.updateSpell(spell.copy(currentUses = spell.maxUses))
-                    }
-                }
-            }
-        }
-    }
-
-    fun updateMoney(cp: Int, sp: Int, ep: Int, gp: Int, pp: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(cp = cp, sp = sp, ep = ep, gp = gp, pp = pp))
-            }
-        }
-    }
-
-    fun updateProficiencies(weapons: String, armor: String, tools: String, languages: String) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(
-                    weaponProficiencies = weapons,
-                    armorProficiencies = armor,
-                    toolProficiencies = tools,
-                    languages = languages
-                ))
-            }
-        }
-    }
-
-    fun updateSpellcastingAbility(ability: String) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(spellcastingAbility = ability))
-            }
-        }
-    }
-
-    fun updateUsedSlots(level: Int, amount: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                val newChar = when(level) {
-                    1 -> char.copy(usedSlots1 = amount)
-                    2 -> char.copy(usedSlots2 = amount)
-                    3 -> char.copy(usedSlots3 = amount)
-                    4 -> char.copy(usedSlots4 = amount)
-                    5 -> char.copy(usedSlots5 = amount)
-                    6 -> char.copy(usedSlots6 = amount)
-                    7 -> char.copy(usedSlots7 = amount)
-                    8 -> char.copy(usedSlots8 = amount)
-                    9 -> char.copy(usedSlots9 = amount)
-                    else -> char
-                }
-                characterRepository.insert(newChar)
-            }
-        }
-    }
-
-    // Tracker methods
-    fun addTracker(name: String, max: Int, resetType: String) {
-        viewModelScope.launch {
-            characterRepository.addTracker(
-                CharacterTrackerEntity(
-                    characterId = characterId,
-                    name = name,
-                    current = max,
-                    max = max,
-                    resetType = resetType
-                )
+        updateCharacter { char ->
+            char.copy(
+                currentHp = char.maxHp,
+                currentHitDice = (char.currentHitDice + (char.level / 2).coerceAtLeast(1)).coerceAtMost(char.level),
+                usedSlots1 = 0, usedSlots2 = 0, usedSlots3 = 0, usedSlots4 = 0, usedSlots5 = 0,
+                usedSlots6 = 0, usedSlots7 = 0, usedSlots8 = 0, usedSlots9 = 0,
+                deathSaveSuccesses = 0, deathSaveFailures = 0
             )
         }
-    }
-
-    fun updateTracker(tracker: CharacterTrackerEntity, current: Int) {
         viewModelScope.launch {
-            characterRepository.updateTracker(tracker.copy(current = current.coerceIn(0, tracker.max)))
-        }
-    }
-    
-    fun removeTracker(tracker: CharacterTrackerEntity) {
-        viewModelScope.launch {
-            characterRepository.removeTracker(tracker)
+            trackers.value.forEach { characterRepository.updateTracker(it.copy(current = it.max)) }
+            spells.value.filter { it.maxUses > 0 }.forEach { characterRepository.updateSpell(it.copy(currentUses = it.maxUses)) }
         }
     }
 
-    fun updateInitiativeBonus(bonus: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(initiativeBonus = bonus))
-            }
+    fun updateUsedSlots(level: Int, amount: Int) = updateCharacter { char ->
+        when(level) {
+            1 -> char.copy(usedSlots1 = amount)
+            2 -> char.copy(usedSlots2 = amount)
+            3 -> char.copy(usedSlots3 = amount)
+            4 -> char.copy(usedSlots4 = amount)
+            5 -> char.copy(usedSlots5 = amount)
+            6 -> char.copy(usedSlots6 = amount)
+            7 -> char.copy(usedSlots7 = amount)
+            8 -> char.copy(usedSlots8 = amount)
+            9 -> char.copy(usedSlots9 = amount)
+            else -> char
         }
     }
 
-    fun updateSpeedBonus(bonus: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(speedBonus = bonus))
-            }
-        }
-    }
+    fun updateInitiativeBonus(bonus: Int) = updateCharacter { it.copy(initiativeBonus = bonus) }
+    fun updateSpeedBonus(bonus: Int) = updateCharacter { it.copy(speedBonus = bonus) }
+    fun updateSpellcastingAbility(ability: String) = updateCharacter { it.copy(spellcastingAbility = ability) }
 
     fun addEquipmentFromSrd(index: String) {
         viewModelScope.launch {
-            srdRepository.fetchEquipment(index).onSuccess { equipment ->
-                characterRepository.addEquipment(
-                    CharacterEquipmentEntity(
-                        characterId = characterId,
-                        equipmentIndex = equipment.index,
-                        name = equipment.name,
-                        weight = equipment.weight ?: 0.0,
-                        quantity = 1,
-                        isEquipped = false
-                    )
-                )
+            srdRepository.fetchEquipment(index).onSuccess { eq ->
+                characterRepository.addEquipment(CharacterEquipmentEntity(
+                    characterId = characterId,
+                    equipmentIndex = eq.index,
+                    name = eq.name,
+                    weight = eq.weight ?: 0.0,
+                    quantity = 1,
+                    isEquipped = false
+                ))
             }
         }
     }
 
     fun toggleEquip(item: CharacterEquipmentEntity) {
         viewModelScope.launch {
-            val currentInventory = inventory.value
-
             if (!item.isEquipped) {
-                val detail = srdRepository.fetchEquipment(item.equipmentIndex).getOrNull()
-                if (detail?.equipmentCategory?.index == "armor") {
-                    currentInventory.forEach { otherItem ->
-                        if (otherItem.isEquipped && otherItem.equipmentIndex != item.equipmentIndex) {
-                            val otherDetail = srdRepository.fetchEquipment(otherItem.equipmentIndex).getOrNull()
-                            if (otherDetail?.equipmentCategory?.index == "armor") {
-                                characterRepository.updateEquipment(otherItem.copy(isEquipped = false))
-                            }
+                srdRepository.fetchEquipment(item.equipmentIndex).onSuccess { detail ->
+                    if (detail.equipmentCategory?.index == "armor") {
+                        inventory.value.filter { it.isEquipped && it.equipmentIndex != item.equipmentIndex }.forEach { other ->
+                             srdRepository.fetchEquipment(other.equipmentIndex).onSuccess { otherDetail ->
+                                 if (otherDetail.equipmentCategory?.index == "armor") {
+                                     characterRepository.updateEquipment(other.copy(isEquipped = false))
+                                 }
+                             }
                         }
                     }
                 }
             }
-
             characterRepository.updateEquipment(item.copy(isEquipped = !item.isEquipped))
         }
     }
 
     fun updateEquipmentAbility(item: CharacterEquipmentEntity, ability: String?) {
-        viewModelScope.launch {
-            characterRepository.updateEquipment(item.copy(selectedAbility = ability))
-        }
+        viewModelScope.launch { characterRepository.updateEquipment(item.copy(selectedAbility = ability)) }
     }
 
     fun updateEquipmentVersatile(item: CharacterEquipmentEntity, twoHanded: Boolean) {
-        viewModelScope.launch {
-            characterRepository.updateEquipment(item.copy(useTwoHanded = twoHanded))
-        }
+        viewModelScope.launch { characterRepository.updateEquipment(item.copy(useTwoHanded = twoHanded)) }
     }
 
     fun updateSpellAbility(spell: CharacterSpellEntity, ability: String?) {
-        viewModelScope.launch {
-            characterRepository.updateSpell(spell.copy(customAbility = ability))
-        }
+        viewModelScope.launch { characterRepository.updateSpell(spell.copy(customAbility = ability)) }
     }
 
     fun updateSpellUses(spell: CharacterSpellEntity, current: Int, max: Int, reset: String) {
-        viewModelScope.launch {
-            characterRepository.updateSpell(spell.copy(currentUses = current, maxUses = max, resetType = reset))
-        }
+        viewModelScope.launch { characterRepository.updateSpell(spell.copy(currentUses = current, maxUses = max, resetType = reset)) }
     }
 
     fun useSpellUse(spell: CharacterSpellEntity) {
@@ -595,50 +452,26 @@ class CharacterDetailViewModel(
         }
     }
 
-    fun toggleSpellPrepared(spell: CharacterSpellEntity) {
-        viewModelScope.launch {
-            characterRepository.updateSpell(spell.copy(isPrepared = !spell.isPrepared))
-        }
+    fun updateMoney(cp: Int, sp: Int, ep: Int, gp: Int, pp: Int) = updateCharacter { 
+        it.copy(cp = cp, sp = sp, ep = ep, gp = gp, pp = pp) 
+    }
+    
+    fun updateSpellcastingLimits(prepares: Boolean, maxPrepared: Int, maxKnown: Int) = updateCharacter {
+        it.copy(preparesSpells = prepares, maxPreparedSpells = maxPrepared, maxKnownSpells = maxKnown)
     }
 
-    fun removeEquipment(item: CharacterEquipmentEntity) {
-        viewModelScope.launch {
-            characterRepository.removeEquipment(item)
-        }
+    fun removeEquipment(item: CharacterEquipmentEntity) = viewModelScope.launch { characterRepository.removeEquipment(item) }
+    fun removeSpell(spell: CharacterSpellEntity) = viewModelScope.launch { characterRepository.removeSpell(spell) }
+    fun toggleSpellPrepared(spell: CharacterSpellEntity) = viewModelScope.launch { characterRepository.updateSpell(spell.copy(isPrepared = !spell.isPrepared)) }
+
+    fun addTracker(name: String, max: Int, resetType: String) = viewModelScope.launch {
+        characterRepository.addTracker(CharacterTrackerEntity(characterId, name, max, max, resetType))
     }
-
-    fun removeSpell(spell: CharacterSpellEntity) {
-        viewModelScope.launch {
-            characterRepository.removeSpell(spell)
-        }
+    fun updateTracker(tracker: CharacterTrackerEntity, current: Int) = viewModelScope.launch {
+        characterRepository.updateTracker(tracker.copy(current = current.coerceIn(0, tracker.max)))
     }
+    fun removeTracker(tracker: CharacterTrackerEntity) = viewModelScope.launch { characterRepository.removeTracker(tracker) }
 
-    fun updateSpellcastingLimits(prepares: Boolean, maxPrepared: Int, maxKnown: Int) {
-        viewModelScope.launch {
-            character.value?.let { char ->
-                characterRepository.insert(char.copy(
-                    preparesSpells = prepares,
-                    maxPreparedSpells = maxPrepared,
-                    maxKnownSpells = maxKnown
-                ))
-            }
-        }
-    }
-
-    // Calculation helpers
-    fun getProficiencyBonus(level: Int) = 2 + (level - 1) / 4
-
-    fun getModifier(score: Int) = (score - 10) / 2
-
-    fun isSkillProficient(skillName: String): Boolean {
-        return character.value?.skillProficiencies?.split(",")?.contains(skillName) ?: false
-    }
-
-    fun isSavingThrowProficient(ability: String): Boolean {
-        return character.value?.savingThrowProficiencies?.split(",")?.contains(ability) ?: false
-    }
-
-    // For info popup
     suspend fun fetchSpellDetails(index: String) = srdRepository.fetchSpell(index)
     suspend fun fetchEquipmentDetails(index: String) = srdRepository.fetchEquipment(index)
 }
