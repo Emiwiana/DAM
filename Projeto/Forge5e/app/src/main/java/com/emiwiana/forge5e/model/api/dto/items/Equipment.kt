@@ -16,6 +16,7 @@ data class Equipment(
     @SerialName("weapon_category") val weaponCategory: String? = null,
     @SerialName("weapon_range") val weaponRange: String? = null,
     @SerialName("category_range") val categoryRange: String? = null,
+    val range: Range? = null,
     @SerialName("armor_category") val armorCategory: String? = null,
     @SerialName("armor_class") val armorClass: ArmorClass? = null,
     @SerialName("str_minimum") val strMinimum: Int? = null,
@@ -26,6 +27,12 @@ data class Equipment(
     val properties: List<APIReference>? = null,
     val contents: List<EquipmentQuantity>? = null,
     val desc: List<String>? = null
+)
+
+@Serializable
+data class Range(
+    val normal: Int,
+    val long: Int? = null
 )
 
 @Serializable

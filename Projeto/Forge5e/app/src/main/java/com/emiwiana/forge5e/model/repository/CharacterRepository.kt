@@ -44,7 +44,28 @@ class CharacterRepository(private val characterDao: CharacterDao) {
         characterDao.insertSpell(spell)
     }
 
+    suspend fun updateSpell(spell: CharacterSpellEntity) {
+        characterDao.updateSpell(spell)
+    }
+
     suspend fun removeSpell(spell: CharacterSpellEntity) {
         characterDao.deleteSpell(spell)
+    }
+
+    // Trackers
+    fun getCharacterTrackers(characterId: Int): Flow<List<CharacterTrackerEntity>> {
+        return characterDao.getCharacterTrackers(characterId)
+    }
+
+    suspend fun addTracker(tracker: CharacterTrackerEntity) {
+        characterDao.insertTracker(tracker)
+    }
+
+    suspend fun updateTracker(tracker: CharacterTrackerEntity) {
+        characterDao.updateTracker(tracker)
+    }
+
+    suspend fun removeTracker(tracker: CharacterTrackerEntity) {
+        characterDao.deleteTracker(tracker)
     }
 }

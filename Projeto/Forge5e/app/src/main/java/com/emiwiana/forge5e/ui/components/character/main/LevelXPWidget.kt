@@ -12,6 +12,7 @@ import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
 @Composable
 fun LevelXPWidget(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
     var showXpDialog by remember { mutableStateOf(false) }
+    var showLevelUpConfirm by remember { mutableStateOf(false) }
     var xpInput by remember { mutableStateOf(character.experience.toString()) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -26,7 +27,7 @@ fun LevelXPWidget(character: CharacterEntity, viewModel: CharacterDetailViewMode
                     Text("Edit XP")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = { viewModel.levelUp() }, enabled = character.level < 20) {
+                Button(onClick = { showLevelUpConfirm = true }, enabled = character.level < 20) {
                     Text("Level Up")
                 }
             }
@@ -49,6 +50,23 @@ fun LevelXPWidget(character: CharacterEntity, viewModel: CharacterDetailViewMode
                     xpInput.toIntOrNull()?.let { viewModel.updateExperience(it) }
                     showXpDialog = false
                 }) { Text("Save") }
+            }
+        )
+    }
+
+    if (showLevelUpConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLevelUpConfirm = false },
+            title = { Text("Confirm Level Up") },
+            text = { Text("Are you sure you want to level up to ${character.level + 1}?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.levelUp()
+                    showLevelUpConfirm = false
+                }) { Text("Confirm") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLevelUpConfirm = false }) { Text("Cancel") }
             }
         )
     }

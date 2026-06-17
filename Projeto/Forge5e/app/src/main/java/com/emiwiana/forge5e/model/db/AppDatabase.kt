@@ -9,9 +9,10 @@ import androidx.room.RoomDatabase
     entities = [
         CharacterEntity::class,
         CharacterEquipmentEntity::class,
-        CharacterSpellEntity::class
+        CharacterSpellEntity::class,
+        CharacterTrackerEntity::class
     ],
-    version = 4,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

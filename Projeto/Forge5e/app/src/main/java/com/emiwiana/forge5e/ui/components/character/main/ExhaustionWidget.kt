@@ -15,13 +15,13 @@ import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
 fun ExhaustionWidget(character: CharacterEntity, viewModel: CharacterDetailViewModel, modifier: Modifier = Modifier) {
     var showInfo by remember { mutableStateOf(false) }
     val exhaustionEffects = listOf(
-        "No effects",
-        "Disadvantage on ability checks",
-        "Speed halved",
-        "Disadvantage on attack rolls and saving throws",
-        "Hit point maximum halved",
-        "Speed reduced to 0",
-        "Death"
+        "0: No effects",
+        "1: Disadvantage on ability checks",
+        "2: Speed halved",
+        "3: Disadvantage on attack rolls and saving throws",
+        "4: Hit point maximum halved",
+        "5: Speed reduced to 0",
+        "6: Death"
     )
 
     Card(modifier = modifier) {
@@ -48,9 +48,22 @@ fun ExhaustionWidget(character: CharacterEntity, viewModel: CharacterDetailViewM
     if (showInfo) {
         AlertDialog(
             onDismissRequest = { showInfo = false },
-            title = { Text("Exhaustion Level ${character.exhaustionLevel} Effect") },
+            title = { Text("Exhaustion Effects") },
             text = {
-                Text(exhaustionEffects.getOrElse(character.exhaustionLevel) { "No effect" })
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    exhaustionEffects.forEachIndexed { index, effect ->
+                        val isCurrentOrBelow = index <= character.exhaustionLevel && index > 0
+                        Text(
+                            text = effect,
+                            style = if (index == character.exhaustionLevel) 
+                                MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary) 
+                            else if (isCurrentOrBelow) 
+                                MaterialTheme.typography.bodyMedium 
+                            else 
+                                MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = { showInfo = false }) { Text("OK") }

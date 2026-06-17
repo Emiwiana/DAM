@@ -7,23 +7,39 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.emiwiana.forge5e.model.db.CharacterEntity
+import com.emiwiana.forge5e.model.db.CharacterEquipmentEntity
+import com.emiwiana.forge5e.model.db.CharacterSpellEntity
+import com.emiwiana.forge5e.model.domain.EquipmentItem
+import com.emiwiana.forge5e.model.repository.toDomainModel
+import com.emiwiana.forge5e.ui.components.browser.FeatureCard
 import com.emiwiana.forge5e.ui.components.character.main.AbilityScoreItem
 import com.emiwiana.forge5e.ui.components.character.attacks.AttackItem
 import com.emiwiana.forge5e.ui.components.character.main.DeathSavesWidget
 import com.emiwiana.forge5e.ui.components.character.equipment.EncumbranceWidget
+import com.emiwiana.forge5e.ui.components.character.equipment.MoneyTrackerWidget
 import com.emiwiana.forge5e.ui.components.character.main.ExhaustionWidget
 import com.emiwiana.forge5e.ui.components.character.main.HealthWidget
+import com.emiwiana.forge5e.ui.components.character.main.HitDiceWidget
 import com.emiwiana.forge5e.ui.components.character.main.LevelXPWidget
 import com.emiwiana.forge5e.ui.components.character.main.SavingThrowsWidget
 import com.emiwiana.forge5e.ui.components.character.main.SkillsWidget
+import com.emiwiana.forge5e.ui.components.character.main.ProficiencyTrackerWidget
+import com.emiwiana.forge5e.ui.components.character.main.TrackersWidget
+import com.emiwiana.forge5e.ui.components.character.main.CombatStatsWidget
+import com.emiwiana.forge5e.ui.components.character.main.PassivePerceptionWidget
 import com.emiwiana.forge5e.ui.components.character.spells.SpellItem
+import com.emiwiana.forge5e.ui.components.character.spells.SpellStatsWidget
 import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +78,7 @@ fun CharacterDetailScreen(
                 when (selectedTabIndex) {
                     0 -> MainTab(char, viewModel)
                     1 -> AttacksTab(viewModel)
-                    2 -> SpellsTab(viewModel)
+                    2 -> SpellsTab(char, viewModel)
                     3 -> EquipmentTab(char, viewModel)
                     4 -> FeaturesTab(viewModel)
                 }
@@ -76,7 +92,8 @@ fun CharacterDetailScreen(
 @Composable
 fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
     val proficiencyBonus = viewModel.getProficiencyBonus(character.level)
-    val ac by viewModel.armorClass.collectAsState()
+    var showShortRestDialog by remember { mutableStateOf(false) }
+    var showLongRestConfirm by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -88,14 +105,34 @@ fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
         }
 
         item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { showShortRestDialog = true }, modifier = Modifier.weight(1f)) {
+                    Text("Short Rest")
+                }
+                Button(onClick = { showLongRestConfirm = true }, modifier = Modifier.weight(1f)) {
+                    Text("Long Rest")
+                }
+            }
+        }
+
+        item {
             HealthWidget(character, viewModel)
         }
 
         item {
+            CombatStatsWidget(character, viewModel)
+        }
+
+        item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HitDiceWidget(character, viewModel, modifier = Modifier.weight(1f))
                 DeathSavesWidget(character, viewModel, modifier = Modifier.weight(1f))
                 ExhaustionWidget(character, viewModel, modifier = Modifier.weight(1f))
             }
+        }
+
+        item {
+            TrackersWidget(viewModel)
         }
 
         item {
@@ -109,12 +146,7 @@ fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
                         Text("+$proficiencyBonus", style = MaterialTheme.typography.titleLarge)
                     }
                 }
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Armor Class", style = MaterialTheme.typography.labelSmall)
-                        Text("$ac", style = MaterialTheme.typography.titleLarge)
-                    }
-                }
+                PassivePerceptionWidget(viewModel)
             }
         }
 
@@ -141,6 +173,56 @@ fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
         item {
             SkillsWidget(character, viewModel, proficiencyBonus)
         }
+
+        item {
+            ProficiencyTrackerWidget(character, viewModel)
+        }
+    }
+
+    if (showShortRestDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.shortRest()
+                showShortRestDialog = false
+            },
+            title = { Text("Short Rest") },
+            text = {
+                Column {
+                    Text("Expend hit dice to heal. You have ${character.currentHitDice} hit dice remaining.")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.spendHitDie() },
+                        enabled = character.currentHitDice > 0 && character.currentHp < character.maxHp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Spend Hit Die (1d4 + CON)")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.shortRest()
+                    showShortRestDialog = false
+                }) { Text("Finish Rest") }
+            }
+        )
+    }
+
+    if (showLongRestConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLongRestConfirm = false },
+            title = { Text("Confirm Long Rest") },
+            text = { Text("A long rest will restore all HP, some hit dice, spell slots, and resources. Reset death saves?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.longRest()
+                    showLongRestConfirm = false
+                }) { Text("Confirm") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLongRestConfirm = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -157,23 +239,107 @@ fun AttacksTab(viewModel: CharacterDetailViewModel) {
             item { Text("No attacks available. Equip weapons or add spells.") }
         }
         items(attacks) { attack ->
-            AttackItem(attack)
+            AttackItem(attack, viewModel)
         }
     }
 }
 
 @Composable
-fun SpellsTab(viewModel: CharacterDetailViewModel) {
+fun SpellsTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
     val spells by viewModel.spells.collectAsState()
+    var showSettings by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(spells) { spell ->
-            SpellItem(spell = spell, onRemove = { viewModel.removeSpell(spell) })
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Spellcasting Stats", style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = { showSettings = true }) {
+                    Icon(Icons.Default.Settings, contentDescription = "Spellcasting Settings")
+                }
+            }
         }
+
+        item {
+            SpellStatsWidget(character, viewModel)
+        }
+
+        if (character.preparesSpells) {
+            val prepared = spells.filter { it.isPrepared }
+            val known = spells.filter { !it.isPrepared }
+
+            item {
+                Text("Prepared Spells (${prepared.size} / ${character.maxPreparedSpells})", style = MaterialTheme.typography.titleMedium)
+            }
+            items(prepared) { spell ->
+                SpellItem(spell = spell, viewModel = viewModel, onRemove = { viewModel.removeSpell(spell) })
+            }
+
+            item {
+                Text("Known Spells (${spells.size} / ${character.maxKnownSpells})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            }
+            items(known) { spell ->
+                SpellItem(spell = spell, viewModel = viewModel, onRemove = { viewModel.removeSpell(spell) })
+            }
+        } else {
+            item {
+                Text("Spells (${spells.size} / ${character.maxKnownSpells})", style = MaterialTheme.typography.titleMedium)
+            }
+            items(spells) { spell ->
+                SpellItem(
+                    spell = spell,
+                    viewModel = viewModel,
+                    showPreparedCheckbox = false,
+                    onRemove = { viewModel.removeSpell(spell) }
+                )
+            }
+        }
+    }
+
+    if (showSettings) {
+        var preparesSpells by remember { mutableStateOf(character.preparesSpells) }
+        var maxPrepared by remember { mutableStateOf(character.maxPreparedSpells.toString()) }
+        var maxKnown by remember { mutableStateOf(character.maxKnownSpells.toString()) }
+
+        AlertDialog(
+            onDismissRequest = { showSettings = false },
+            title = { Text("Spellcasting Configuration") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = preparesSpells, onCheckedChange = { preparesSpells = it })
+                        Text("Prepares Spells (e.g. Wizard, Cleric)")
+                    }
+                    TextField(
+                        value = maxPrepared,
+                        onValueChange = { if (it.all { c -> c.isDigit() }) maxPrepared = it },
+                        label = { Text("Max Prepared Spells") },
+                        enabled = preparesSpells
+                    )
+                    TextField(
+                        value = maxKnown,
+                        onValueChange = { if (it.all { c -> c.isDigit() }) maxKnown = it },
+                        label = { Text("Max Known Spells") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.updateSpellcastingLimits(
+                        preparesSpells,
+                        maxPrepared.toIntOrNull() ?: 0,
+                        maxKnown.toIntOrNull() ?: 0
+                    )
+                    showSettings = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettings = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -189,25 +355,15 @@ fun EquipmentTab(character: CharacterEntity, viewModel: CharacterDetailViewModel
     Column(modifier = Modifier.fillMaxSize()) {
         EncumbranceWidget(totalWeight = totalWeight, carryCapacity = carryCapacity)
 
+        MoneyTrackerWidget(character, viewModel)
+
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(inventory) { item ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.name.ifBlank { item.equipmentIndex })
-                            Text("${item.weight} lbs | Qty: ${item.quantity}", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text("Equipped", style = MaterialTheme.typography.labelSmall)
-                        Checkbox(checked = item.isEquipped, onCheckedChange = { viewModel.toggleEquip(item) })
-                        IconButton(onClick = { viewModel.removeEquipment(item) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
-                        }
-                    }
-                }
+                EquipmentItemRow(item, viewModel)
             }
         }
 
@@ -241,6 +397,58 @@ fun EquipmentTab(character: CharacterEntity, viewModel: CharacterDetailViewModel
             },
             confirmButton = { TextButton(onClick = { showAddEqDialog = false }) { Text("Close") } }
         )
+    }
+}
+
+@Composable
+fun EquipmentItemRow(item: CharacterEquipmentEntity, viewModel: CharacterDetailViewModel) {
+    var showInfo by remember { mutableStateOf(false) }
+    var itemDetail by remember { mutableStateOf<EquipmentItem?>(null) }
+    val scope = rememberCoroutineScope()
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(item.name.ifBlank { item.equipmentIndex })
+                Text("${item.weight} lbs | Qty: ${item.quantity}", style = MaterialTheme.typography.bodySmall)
+            }
+
+            IconButton(onClick = {
+                scope.launch {
+                    viewModel.fetchEquipmentDetails(item.equipmentIndex).onSuccess {
+                        itemDetail = it.toDomainModel()
+                        showInfo = true
+                    }
+                }
+            }) {
+                Icon(Icons.Default.Info, contentDescription = "Info")
+            }
+
+            Text("Equipped", style = MaterialTheme.typography.labelSmall)
+            Checkbox(checked = item.isEquipped, onCheckedChange = { viewModel.toggleEquip(item) })
+            IconButton(onClick = { viewModel.removeEquipment(item) }) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete")
+            }
+        }
+    }
+
+    if (showInfo && itemDetail != null) {
+        Dialog(onDismissRequest = { showInfo = false }) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    FeatureCard(item = itemDetail!!)
+                    Button(
+                        onClick = { showInfo = false },
+                        modifier = Modifier.align(Alignment.End).padding(top = 8.dp)
+                    ) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
     }
 }
 

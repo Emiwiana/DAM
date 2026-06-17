@@ -26,6 +26,7 @@ data class CharacterEntity(
     val maxHp: Int = 10,
     val currentHp: Int = 10,
     val temporaryHp: Int = 0,
+    val currentHitDice: Int = 1,
     
     // Death Saves
     val deathSaveSuccesses: Int = 0,
@@ -37,9 +38,39 @@ data class CharacterEntity(
     // Progression
     val experience: Int = 0,
 
-    // Proficiencies (storing as comma-separated strings for simplicity in this schema)
+    // Proficiencies
     val skillProficiencies: String = "",
-    val savingThrowProficiencies: String = ""
+    val savingThrowProficiencies: String = "",
+    val weaponProficiencies: String = "",
+    val armorProficiencies: String = "",
+    val toolProficiencies: String = "",
+    val languages: String = "",
+
+    // Money
+    val cp: Int = 0,
+    val sp: Int = 0,
+    val ep: Int = 0,
+    val gp: Int = 0,
+    val pp: Int = 0,
+
+    // Spellcasting
+    val spellcastingAbility: String = "INT",
+    val usedSlots1: Int = 0,
+    val usedSlots2: Int = 0,
+    val usedSlots3: Int = 0,
+    val usedSlots4: Int = 0,
+    val usedSlots5: Int = 0,
+    val usedSlots6: Int = 0,
+    val usedSlots7: Int = 0,
+    val usedSlots8: Int = 0,
+    val usedSlots9: Int = 0,
+    val preparesSpells: Boolean = true, // If false, "Known" and "Prepared" are merged
+    val maxPreparedSpells: Int = 0,
+    val maxKnownSpells: Int = 0,
+
+    // Bonuses
+    val initiativeBonus: Int = 0,
+    val speedBonus: Int = 0
 )
 
 @Entity(tableName = "character_equipment", primaryKeys = ["characterId", "equipmentIndex"])
@@ -49,12 +80,28 @@ data class CharacterEquipmentEntity(
     val name: String = "",
     val quantity: Int = 1,
     val isEquipped: Boolean = false,
-    val weight: Double = 0.0
+    val weight: Double = 0.0,
+    val selectedAbility: String? = null,
+    val useTwoHanded: Boolean = false
 )
 
 @Entity(tableName = "character_spells", primaryKeys = ["characterId", "spellIndex"])
 data class CharacterSpellEntity(
     val characterId: Int,
     val spellIndex: String,
-    val name: String = ""
+    val name: String = "",
+    val customAbility: String? = null,
+    val currentUses: Int = 0,
+    val maxUses: Int = 0,
+    val resetType: String = "Long Rest",
+    val isPrepared: Boolean = true
+)
+
+@Entity(tableName = "character_trackers", primaryKeys = ["characterId", "name"])
+data class CharacterTrackerEntity(
+    val characterId: Int,
+    val name: String,
+    val current: Int,
+    val max: Int,
+    val resetType: String // "Short Rest" or "Long Rest"
 )

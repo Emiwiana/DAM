@@ -37,6 +37,22 @@ interface CharacterDao {
     @Query("SELECT * FROM character_spells WHERE characterId = :characterId")
     fun getCharacterSpells(characterId: Int): Flow<List<CharacterSpellEntity>>
 
+    @Update
+    suspend fun updateSpell(spell: CharacterSpellEntity)
+
     @Delete
     suspend fun deleteSpell(spell: CharacterSpellEntity)
+
+    // Trackers
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTracker(tracker: CharacterTrackerEntity)
+
+    @Query("SELECT * FROM character_trackers WHERE characterId = :characterId")
+    fun getCharacterTrackers(characterId: Int): Flow<List<CharacterTrackerEntity>>
+
+    @Update
+    suspend fun updateTracker(tracker: CharacterTrackerEntity)
+
+    @Delete
+    suspend fun deleteTracker(tracker: CharacterTrackerEntity)
 }
