@@ -11,15 +11,24 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.emiwiana.forge5e.model.api.NetworkClient
+import com.emiwiana.forge5e.model.db.AppDatabase
+import com.emiwiana.forge5e.model.repository.CharacterRepository
 import com.emiwiana.forge5e.model.repository.SrdRepository
+import com.emiwiana.forge5e.ui.screens.CharacterBuilderScreen
+import com.emiwiana.forge5e.ui.screens.CharacterDetailScreen
+import com.emiwiana.forge5e.ui.screens.CharacterListScreen
 import com.emiwiana.forge5e.ui.screens.DiceRollerScreen
 import com.emiwiana.forge5e.ui.screens.MainMenuScreen
 import com.emiwiana.forge5e.ui.screens.SrdBrowserScreen
 import com.emiwiana.forge5e.ui.theme.Forge5eTheme
+import com.emiwiana.forge5e.viewModel.CharacterDetailViewModel
+import com.emiwiana.forge5e.viewModel.CharacterViewModel
 import com.emiwiana.forge5e.viewModel.DiceRollerViewModel
 import com.emiwiana.forge5e.viewModel.SrdBrowserViewModel
 
@@ -35,25 +44,80 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val navController = rememberNavController()
 
-                    val repository = remember {
+                    val srdRepository = remember {
                         SrdRepository(NetworkClient.srdApiService)
                     }
 
-                    NavHost(navController = navController, startDestination = "main_menu") {
+                    val database = remember { AppDatabase.getDatabase(applicationContext) }
+                    val characterRepository = remember { CharacterRepository(database.characterDao()) }
 
-                        composable("main_menu") {
+                    NavHost(navController = navController, startDestination = Screen.MainMenu.route) {
+
+                        composable(Screen.MainMenu.route) {
                             MainMenuScreen(
-                                onNavigateToBrowser = { navController.navigate("browser") },
-                                onNavigateToDiceRoller = { navController.navigate("dice_roller") }
+                                onNavigateToBrowser = { navController.navigate(Screen.Browser.route) },
+                                onNavigateToDiceRoller = { navController.navigate(Screen.DiceRoller.route) },
+                                onNavigateToCharacters = { navController.navigate(Screen.Characters.route) }
                             )
                         }
 
-                        composable("browser") {
+                        composable(Screen.Characters.route) {
+                            val viewModel: CharacterViewModel = viewModel(
+                                factory = object : ViewModelProvider.Factory {
+                                    @Suppress("UNCHECKED_CAST")
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        return CharacterViewModel(characterRepository) as T
+                                    }
+                                }
+                            )
+                            CharacterListScreen(
+                                viewModel = viewModel,
+                                onNavigateToDetail = { id ->
+                                    navController.navigate(Screen.CharacterDetail.createRoute(id))
+                                },
+                                onNavigateToBuilder = {
+                                    // Placeholder for builder, using a simple route for now
+                                    navController.navigate("builder")
+                                },
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable(
+                            route = Screen.CharacterDetail.route,
+                            arguments = listOf(navArgument("characterId") { type = NavType.IntType })
+                        ) { backStackEntry ->
+                            val characterId = backStackEntry.arguments?.getInt("characterId") ?: 0
+                            val viewModel: CharacterDetailViewModel = viewModel(
+                                factory = object : ViewModelProvider.Factory {
+                                    @Suppress("UNCHECKED_CAST")
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        return CharacterDetailViewModel(
+                                            characterId,
+                                            characterRepository,
+                                            srdRepository
+                                        ) as T
+                                    }
+                                }
+                            )
+                            CharacterDetailScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("builder") {
+                            CharacterBuilderScreen(
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable(Screen.Browser.route) {
                             val viewModel: SrdBrowserViewModel = viewModel(
                                 factory = object : ViewModelProvider.Factory {
                                     @Suppress("UNCHECKED_CAST")
                                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                                        return SrdBrowserViewModel(repository) as T
+                                        return SrdBrowserViewModel(srdRepository) as T
                                     }
                                 }
                             )
@@ -61,7 +125,7 @@ class MainActivity : ComponentActivity() {
                             SrdBrowserScreen(viewModel = viewModel)
                         }
 
-                        composable("dice_roller") {
+                        composable(Screen.DiceRoller.route) {
                             val diceViewModel: DiceRollerViewModel = viewModel()
                             DiceRollerScreen(
                                 viewModel = diceViewModel,

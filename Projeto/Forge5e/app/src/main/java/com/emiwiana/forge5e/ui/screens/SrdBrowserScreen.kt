@@ -22,11 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.emiwiana.forge5e.model.api.dto.APIReference
 import com.emiwiana.forge5e.model.api.dto.character.characterClass.EquipmentOption
 import com.emiwiana.forge5e.model.domain.BrowseCategory
-import com.emiwiana.forge5e.ui.components.FeatureCard
+import com.emiwiana.forge5e.ui.components.browser.FeatureCard
 import com.emiwiana.forge5e.viewModel.*
 
 /**

@@ -14,11 +14,13 @@ import androidx.compose.ui.unit.dp
  *
  * @param onNavigateToBrowser Callback to navigate to the SRD Browser screen.
  * @param onNavigateToDiceRoller Callback to navigate to the Dice Roller screen.
+ * @param onNavigateToCharacters Callback to navigate to the Characters screen.
  */
 @Composable
 fun MainMenuScreen(
     onNavigateToBrowser: () -> Unit,
-    onNavigateToDiceRoller: () -> Unit
+    onNavigateToDiceRoller: () -> Unit,
+    onNavigateToCharacters: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -38,6 +40,20 @@ fun MainMenuScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 48.dp)
         )
+
+        Button(
+            onClick = onNavigateToCharacters,
+            modifier = Modifier
+                .fillMaxWidth(0.6f)
+                .height(56.dp)
+        ) {
+            Text(
+                text = "Characters",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = onNavigateToBrowser,
