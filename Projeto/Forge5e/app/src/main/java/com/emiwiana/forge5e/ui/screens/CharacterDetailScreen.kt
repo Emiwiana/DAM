@@ -110,8 +110,6 @@ fun MainTab(character: CharacterEntity, viewModel: CharacterDetailViewModel) {
             }
         }
 
-        item { TrackersWidget(viewModel) }
-
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
